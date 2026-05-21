@@ -1,25 +1,24 @@
 package hotel;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class Main {
-  
-    static List<User> users = new ArrayList<>();
+
     static List<Hotel> hotels = new ArrayList<>();
     static List<Promo> promos = new ArrayList<>();
     static List<Booking> bookings = new ArrayList<>();
-    static List<ServiceItem> serviceCatalog = new ArrayList<>();
-
     static User loggedUser = null;
     static Scanner sc = new Scanner(System.in);
 
     public static void main(String[] args) {
-        seedData();
+        hotels = DatabaseHelper.loadAllHotels();
+        promos = DatabaseHelper.loadAllPromos();
 
+        // Autentikasi
         while (loggedUser == null) {
             System.out.println("\n=== APLIKASI BOOKING HOTEL ===");
             System.out.println("1. Register");
@@ -43,7 +42,30 @@ public class Main {
 
         int menu;
         do {
-            refreshAllBookings();
+            // Muat ulang booking user dari DB
+            bookings = DatabaseHelper.loadBookingsForUser(loggedUser.getIdAkun());
+
+            // Refresh status booking dan sinkronkan ke DB
+            for (Booking b : bookings) {
+                b.refreshStatus();
+                String newStatus = b.getStatus().name()
+                        .replace("CONFIRMED", "dikonfirmasi")
+                        .replace("CHECKED_IN", "check_in")     // ← perbaikan underscore
+                        .replace("CHECKED_OUT", "check_out")   // ← perbaikan underscore
+                        .replace("REFUNDED", "dibatalkan");
+                DatabaseHelper.updateReservationStatus(b.getIdReservasi(), newStatus);
+            }
+
+            // Muat layanan tambahan & refresh status layanan
+            for (Booking b : bookings) {
+                List<ServiceOrder> serv = DatabaseHelper.loadServiceOrdersForReservation(b.getIdReservasi());
+                for (ServiceOrder so : serv) {
+                    so.refreshStatus();
+                }
+                b.getServices().clear();
+                b.getServices().addAll(serv);
+            }
+
             System.out.println("\n=================================");
             System.out.println("       DASHBOARD UTAMA           ");
             System.out.println("=================================");
@@ -52,7 +74,8 @@ public class Main {
             System.out.println("3. Promo Tersedia");
             System.out.println("4. Layanan Tambahan (Selama Menginap)");
             System.out.println("5. Pesanan Saya (Riwayat & Refund)");
-            System.out.println("6. Logout");
+            System.out.println("6. Profil");
+            System.out.println("7. Logout");
             System.out.print("Pilih: ");
             menu = inputInt();
             sc.nextLine();
@@ -63,44 +86,51 @@ public class Main {
                 case 3: tampilkanPromo();  break;
                 case 4: layananTambahan(); break;
                 case 5: pesananSaya();     break;
-                case 6: logout();          break;
+                case 6: editProfile();     break;
+                case 7: logout();          break;
                 default: System.out.println("Pilihan tidak tersedia.");
             }
-        } while (menu != 6);
+        } while (menu != 7);
     }
 
-    
-    static void register() {        
+    static void register() {
         System.out.print("Username: ");     String u = sc.nextLine();
         System.out.print("Email: ");        String e = sc.nextLine();
         System.out.print("Password: ");     String p = sc.nextLine();
         System.out.print("No. Handphone: ");String n = sc.nextLine();
-        // Validasi sederhana
-        if (u.isEmpty() || e.isEmpty() || p.isEmpty()) {
-            System.out.println("Semua field harus diisi.");
-            return;
+        System.out.print("Nama Lengkap: "); String nama = sc.nextLine();
+        System.out.print("Alamat: ");       String alamat = sc.nextLine();
+        System.out.print("Jenis Kelamin: "); String jk = sc.nextLine();
+
+        // Urutan: idAkun, username, email, password, phone, alamat, nama, jenisKelamin
+        User newUser = new User(0, u, e, p, n, alamat, nama, jk); // perbaikan urutan
+        if (DatabaseHelper.registerUser(newUser)) {
+            System.out.println("✅ Registrasi berhasil! Silakan login.");
+        } else {
+            System.out.println("❌ Registrasi gagal.");
         }
-        users.add(new User(u, e, p, n));
-        System.out.println("Registrasi berhasil! Silakan login.");  
     }
-    static void login(){         
+
+    static void login() {
         System.out.print("Username: "); String u = sc.nextLine();
         System.out.print("Password: "); String p = sc.nextLine();
-        for (User user : users) {
-            if (user.getUsername().equals(u) && user.getPassword().equals(p)) {
-                loggedUser = user;
-                System.out.println("🎉 Login berhasil. Selamat datang, " + u + "!");
-                return;
-            }
+        loggedUser = DatabaseHelper.loginUser(u, p);
+        if (loggedUser != null) {
+            System.out.println("🎉 Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!");
+        } else {
+            System.out.println("❌ Login gagal. Periksa username dan password.");
         }
-        System.out.println("Username atau password salah."); }
-    static void logout()   { loggedUser = null; System.out.println("Anda telah logout."); }
+    }
+
+    static void logout() {
+        loggedUser = null;
+        System.out.println("Anda telah logout.");
+    }
 
     static void cariHotel() {
-        
         Set<String> cities = hotels.stream()
-                                   .map(Hotel::getLocation)
-                                   .collect(Collectors.toCollection(LinkedHashSet::new));
+                .map(Hotel::getLocation)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         while (true) {
             System.out.println("\n--- CARI HOTEL (JELAJAH) ---");
@@ -119,10 +149,10 @@ public class Main {
                 continue;
             }
             String kotaTerpilih = new ArrayList<>(cities).get(pilihKota - 1);
-            
+
             List<Hotel> hotelDiKota = hotels.stream()
-                                            .filter(h -> h.getLocation().equalsIgnoreCase(kotaTerpilih))
-                                            .collect(Collectors.toList());
+                    .filter(h -> h.getLocation().equalsIgnoreCase(kotaTerpilih))
+                    .collect(Collectors.toList());
 
             if (hotelDiKota.isEmpty()) {
                 System.out.println("Tidak ada hotel di " + kotaTerpilih);
@@ -133,13 +163,13 @@ public class Main {
                 System.out.println("\nHotel di " + kotaTerpilih + ":");
                 for (int j = 0; j < hotelDiKota.size(); j++) {
                     Hotel h = hotelDiKota.get(j);
-                    System.out.println((j+1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
+                    System.out.println((j + 1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
                 }
                 System.out.println("0. Ganti Kota");
                 System.out.print("Pilih hotel untuk lihat detail: ");
                 int pilihHotel = inputInt();
                 sc.nextLine();
-                if (pilihHotel == 0) break; 
+                if (pilihHotel == 0) break;
                 if (pilihHotel < 1 || pilihHotel > hotelDiKota.size()) {
                     System.out.println("Pilihan tidak valid.");
                     continue;
@@ -151,8 +181,8 @@ public class Main {
                     List<Room> rooms = hotel.getRooms();
                     for (int k = 0; k < rooms.size(); k++) {
                         Room r = rooms.get(k);
-                        System.out.println((k+1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
-                                           "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
+                        System.out.println((k + 1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
+                                "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
                     }
                     System.out.println("0. Kembali ke Daftar Hotel");
                     System.out.print("(Hanya lihat) Pilih 0: ");
@@ -170,8 +200,8 @@ public class Main {
         System.out.print("Masukkan kota tujuan: ");
         String kota = sc.nextLine();
         List<Hotel> hotelDiKota = hotels.stream()
-                                        .filter(h -> h.getLocation().equalsIgnoreCase(kota))
-                                        .collect(Collectors.toList());
+                .filter(h -> h.getLocation().equalsIgnoreCase(kota))
+                .collect(Collectors.toList());
 
         if (hotelDiKota.isEmpty()) {
             System.out.println("Tidak ada hotel di " + kota + ".");
@@ -182,7 +212,7 @@ public class Main {
             System.out.println("\nPilih Hotel:");
             for (int i = 0; i < hotelDiKota.size(); i++) {
                 Hotel h = hotelDiKota.get(i);
-                System.out.println((i+1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
+                System.out.println((i + 1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
             }
             System.out.println("0. Batal & Kembali ke Menu Utama");
             System.out.print("Pilih: ");
@@ -200,8 +230,8 @@ public class Main {
                 List<Room> rooms = hotel.getRooms();
                 for (int j = 0; j < rooms.size(); j++) {
                     Room r = rooms.get(j);
-                    System.out.println((j+1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
-                                       "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
+                    System.out.println((j + 1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
+                            "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
                 }
                 System.out.println("0. Pilih Hotel Lain");
                 System.out.print("Pilih kamar untuk dipesan: ");
@@ -214,14 +244,16 @@ public class Main {
                 }
                 Room kamar = rooms.get(pilihKamar - 1);
                 if (kamar.getStock() <= 0) {
-                    System.out.println("Stok kamar ini habis. Silakan pilih kamar lain.");
+                    System.out.println("❌ Stok kamar ini habis.");
                     continue;
                 }
 
-                LocalDate checkIn = inputDate("Tanggal check‑in (yyyy-mm-dd): ");
+                // Input tanggal
+                System.out.print("Tanggal check‑in (yyyy-mm-dd): ");
+                LocalDate checkIn = inputDate();  // panggil method tanpa parameter
                 if (checkIn == null) continue;
                 if (checkIn.isBefore(LocalDate.now())) {
-                    System.out.println("Tanggal tidak boleh di masa lalu.");
+                    System.out.println("❌ Tanggal tidak boleh di masa lalu.");
                     continue;
                 }
 
@@ -229,10 +261,11 @@ public class Main {
                 int malam = inputInt();
                 sc.nextLine();
                 if (malam < 1) {
-                    System.out.println("Minimal 1 malam.");
+                    System.out.println("❌ Minimal 1 malam.");
                     continue;
                 }
 
+                // Promo
                 double diskon = 0;
                 System.out.print("Punya kode promo? (kosongkan jika tidak): ");
                 String kode = sc.nextLine();
@@ -246,9 +279,9 @@ public class Main {
                         }
                     }
                     if (promoAktif == null) {
-                        System.out.println("Kode tidak valid atau tidak berlaku untuk tanggal tersebut.");
+                        System.out.println("❌ Kode tidak valid atau tidak berlaku.");
                     } else {
-                        System.out.println("Promo " + promoAktif.getCode() + " diterapkan! Diskon " + (int)(diskon*100) + "%");
+                        System.out.println("✅ Promo diterapkan: " + promoAktif.getCode());
                     }
                 }
 
@@ -259,25 +292,36 @@ public class Main {
                 System.out.println("\n--- REVIEW PESANAN ---");
                 System.out.println("Hotel: " + hotel.getName());
                 System.out.println("Kamar: " + kamar.getType());
-                System.out.println("Check‑in: " + checkIn);
-                System.out.println("Malam: " + malam);
-                System.out.println("Harga: Rp " + hargaDasar);
+                System.out.println("Check‑in: " + checkIn + " – Check‑out: " + checkIn.plusDays(malam));
                 if (potongan > 0) System.out.println("Diskon: -Rp " + potongan);
                 System.out.println("Total: Rp " + total);
-                System.out.print("Metode Pembayaran (E‑Wallet/Transfer): ");
-                String pay = sc.nextLine();
 
+                System.out.print("Metode Pembayaran (transfer_bank / e_wallet): ");
+                String metode = sc.nextLine().toLowerCase().trim();
+                if (!metode.equals("transfer_bank") && !metode.equals("e_wallet")) {
+                    System.out.println("❌ Metode pembayaran hanya 'transfer_bank' atau 'e_wallet'.");
+                    continue;
+                }
+
+                // --- PERBAIKAN LOGIKA KONFIRMASI PESANAN ---
                 System.out.print("Konfirmasi pesanan? (Y/N): ");
-                if (!sc.nextLine().equalsIgnoreCase("Y")) {
+                String konfirmasi = sc.nextLine().trim(); // Langsung ambil input bersih
+
+                if (!konfirmasi.equalsIgnoreCase("Y")) {
                     System.out.println("Pesanan dibatalkan.");
                     return;
                 }
 
-                String trxId = "TRX-" + (int)(Math.random()*9000+1000);
-                kamar.decreaseStock();
-                bookings.add(new Booking(trxId, loggedUser, hotel, kamar, checkIn, malam, total, pay));
-                System.out.println("Booking berhasil! ID: " + trxId);
-                return; 
+                    
+                Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
+                        checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
+                int reservasiId = DatabaseHelper.createReservation(newBooking);
+                if (reservasiId > 0) {
+                    System.out.println("Booking berhasil! ID reservasi: " + reservasiId);
+                } else {
+                    System.out.println("Gagal booking.");
+                }
+                return;
             }
         }
     }
@@ -290,135 +334,174 @@ public class Main {
         }
     }
 
-    static void layananTambahan() {         
-        List<Booking> inapSekarang = new ArrayList<>();
-        for (Booking b : bookings) {
-            b.refreshStatus();
-            if (b.getStatus() == Booking.Status.CHECKED_IN && b.getUser().getUsername().equals(loggedUser.getUsername())) {
-                inapSekarang.add(b);
-            }
-        }
-        if (inapSekarang.isEmpty()) {
+    static void layananTambahan() {
+        List<Booking> inap = bookings.stream()
+                .filter(b -> b.getStatus() == Booking.Status.CHECKED_IN
+                        && b.getUser().getIdAkun() == loggedUser.getIdAkun())
+                .collect(Collectors.toList());
+
+        if (inap.isEmpty()) {
             System.out.println("Anda tidak sedang menginap saat ini.");
             return;
         }
 
         System.out.println("\n--- LAYANAN TAMBAHAN SELAMA MENGINAP ---");
         System.out.println("Pilih pesanan yang sedang berjalan:");
-        for (int i = 0; i < inapSekarang.size(); i++) {
-            System.out.println((i+1) + ". " + inapSekarang.get(i).info());
+        for (int i = 0; i < inap.size(); i++) {
+            System.out.println((i + 1) + ". " + inap.get(i).info());
         }
-        System.out.print("Pilih nomor pesanan (0 = batal): ");
-        int idx = inputInt(); sc.nextLine();
-        if (idx == 0 || idx < 1 || idx > inapSekarang.size()) return;
-        Booking b = inapSekarang.get(idx-1);
-
-        System.out.println("\nLayanan Tersedia:");
-        for (int i = 0; i < serviceCatalog.size(); i++) {
-            ServiceItem s = serviceCatalog.get(i);
-            System.out.println((i+1) + ". " + s.getName() + " - Rp " + s.getPrice());
-        }
-        System.out.print("Pilih layanan (0 = selesai): ");
-        int pilihLayanan = inputInt(); sc.nextLine();
-        if (pilihLayanan < 1 || pilihLayanan > serviceCatalog.size()){
-            System.out.println("Pilihan layanan tidak valid.");
-            return;
-    }
-        ServiceItem layanan = serviceCatalog.get(pilihLayanan-1);
-
-        b.addService(layanan);
-        System.out.println(" Layanan " + layanan.getName() + " ditambahkan. Status: CONFIRMED");
-    }
-
-
-static void pesananSaya() {
-    refreshAllBookings();
-    System.out.println("\n--- RIWAYAT & PESANAN ANDA ---");
-    List<Booking> punyaUser = new ArrayList<>();
-    for (Booking b : bookings) {
-        if (b.getUser().getUsername().equals(loggedUser.getUsername())) {
-            punyaUser.add(b);
-        }
-    }
-    if (punyaUser.isEmpty()) {
-        System.out.println("Belum ada pemesanan.");
-        return;
-    }
-
-    for (int i = 0; i < punyaUser.size(); i++) {
-        Booking b = punyaUser.get(i);
-        System.out.println((i + 1) + ". " + b.info());
-        if (!b.getServices().isEmpty()) {
-            System.out.println("   Layanan Tambahan:");
-            for (ServiceOrder so : b.getServices()) {
-                System.out.println("     - " + so);
-            } 
-        } 
-    } 
-
-    System.out.print("\nIngin refund pesanan? (Y/N): ");
-    String tanya = sc.nextLine();
-    if (tanya.equalsIgnoreCase("Y")) {
-        System.out.print("Masukkan nomor urut pesanan: ");
+        System.out.print("Pilih (0 = batal): ");
         int idx = inputInt();
         sc.nextLine();
-        if (idx < 1 || idx > punyaUser.size()) {
-            System.out.println("Nomor tidak valid.");
+        if (idx == 0 || idx < 1 || idx > inap.size()) return;
+        Booking b = inap.get(idx - 1);
+
+        System.out.println("\nKategori Layanan:");
+        System.out.println("1. Spa");
+        System.out.println("2. Makanan");
+        System.out.println("3. Minuman");
+        System.out.print("Pilih kategori (0 = batal): ");
+        int kat = inputInt();
+        sc.nextLine();
+        if (kat == 0 || kat < 1 || kat > 3) return;
+
+        List<ServiceItem> menu = null;
+        String jenis = "";
+        if (kat == 1) {
+            menu = DatabaseHelper.loadSpaMenu(b.getHotel().getIdHotel());
+            jenis = "Spa";
+        } else if (kat == 2) {
+            menu = DatabaseHelper.loadMakananMenu();
+            jenis = "Makanan";
+        } else if (kat == 3) {
+            menu = DatabaseHelper.loadMinumanMenu();
+            jenis = "Minuman";
+        }
+
+        if (menu == null || menu.isEmpty()) {
+            System.out.println("Maaf, tidak ada " + jenis + " tersedia.");
             return;
         }
-        Booking b = punyaUser.get(idx - 1);
-        if (b.isRefundable()) {
-            b.getRoom().increaseStock();
-            b.setStatus(Booking.Status.REFUNDED);
-            System.out.println("Refund berhasil! Uang sebesar Rp " + b.getTotalPrice() + " akan dikembalikan.");
+
+        System.out.println("\nDaftar " + jenis + ":");
+        for (int i = 0; i < menu.size(); i++) {
+            ServiceItem item = menu.get(i);
+            System.out.println((i + 1) + ". " + item.getName() + " - Rp " + item.getPrice());
+        }
+        System.out.print("Pilih nomor (0 = batal): ");
+        int pilihMenu = inputInt();
+        sc.nextLine();
+        if (pilihMenu == 0 || pilihMenu < 1 || pilihMenu > menu.size()) return;
+        ServiceItem terpilih = menu.get(pilihMenu - 1);
+
+        System.out.print("Jumlah: ");
+        int jumlah = inputInt();
+        sc.nextLine();
+        if (jumlah < 1) {
+            System.out.println("Jumlah minimal 1.");
+            return;
+        }
+
+        int total = terpilih.getPrice() * jumlah;
+        System.out.println("Total harga: Rp " + total);
+        System.out.print("Konfirmasi pesan? (Y/N): ");
+        if (!sc.nextLine().equalsIgnoreCase("Y")) {
+            System.out.println("Pesanan dibatalkan.");
+            return;
+        }
+
+        boolean sukses = false;
+        if (kat == 1) {
+            sukses = DatabaseHelper.orderSpa(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
+        } else if (kat == 2) {
+            sukses = DatabaseHelper.orderMakanan(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
+        } else if (kat == 3) {
+            sukses = DatabaseHelper.orderMinuman(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
+        }
+
+        if (sukses) {
+            ServiceOrder so = new ServiceOrder(0, b.getIdReservasi(),
+                    kat == 1 ? ServiceOrder.ServiceType.SPA :
+                    kat == 2 ? ServiceOrder.ServiceType.MAKANAN : ServiceOrder.ServiceType.MINUMAN,
+                    terpilih.getName(), terpilih.getPrice(), jumlah, total,
+                    ServiceOrder.OrderStatus.DIPROSES, LocalDateTime.now());
+            b.addService(so);
+            System.out.println("✅ Pesanan " + jenis + " berhasil! Status: Diproses.");
         } else {
-            System.out.println("Refund tidak dapat dilakukan. Pastikan status CONFIRMED dan masih > 2 jam sebelum check‑in.");
+            System.out.println("❌ Gagal memesan " + jenis + ".");
         }
     }
-}
 
-    static void refreshAllBookings() {
-        for (Booking b : bookings){
-            b.refreshStatus();
-            b.refreshServiceStatuses();
-        } 
+    static void pesananSaya() {
+        System.out.println("\n--- PESANAN SAYA ---");
+        for (int i = 0; i < bookings.size(); i++) {
+            Booking b = bookings.get(i);
+            System.out.println((i + 1) + ". " + b.info());
+            if (!b.getServices().isEmpty()) {
+                System.out.println("   Layanan:");
+                for (ServiceOrder so : b.getServices()) {
+                    System.out.println("     " + so);
+                }
+            }
+        }
+        System.out.print("Refund? (Y/N): ");
+        if (!sc.nextLine().equalsIgnoreCase("Y")) return;
+        System.out.print("Nomor urut: ");
+        int idx = inputInt();
+        sc.nextLine();
+        if (idx < 1 || idx > bookings.size()) return;
+        Booking b = bookings.get(idx - 1);
+        if (b.isRefundable()) {
+            b.getRoom().increaseStock();
+            DatabaseHelper.updateStock(b.getRoom().getIdKamar(), b.getRoom().getStock());
+            DatabaseHelper.updateReservationStatus(b.getIdReservasi(), "dibatalkan");
+            b.setStatus(Booking.Status.REFUNDED);
+            System.out.println("✅ Refund berhasil.");
+        } else {
+            System.out.println("❌ Tidak bisa refund.");
+        }
     }
 
+    static void editProfile() {
+        System.out.println("\n--- EDIT PROFIL ---");
+        System.out.print("Nama [" + loggedUser.getNamaString() + "]: ");
+        String nama = sc.nextLine();
+        if (!nama.isEmpty()) loggedUser.setNamaString(nama);
+
+        System.out.print("No HP [" + loggedUser.getPhone() + "]: ");
+        String hp = sc.nextLine();
+        if (!hp.isEmpty()) loggedUser.setPhone(hp);
+
+        System.out.print("Alamat [" + loggedUser.getAlamatString() + "]: ");
+        String alamat = sc.nextLine();
+        if (!alamat.isEmpty()) loggedUser.setAlamatString(alamat);
+
+        System.out.print("Jenis Kelamin [" + loggedUser.getJenisKelamin() + "]: ");
+        String jk = sc.nextLine();
+        if (!jk.isEmpty()) loggedUser.setJenisKelamin(jk);
+
+        if (DatabaseHelper.updateProfile(loggedUser))
+            System.out.println("✅ Profil diperbarui.");
+        else
+            System.out.println("❌ Gagal memperbarui profil.");
+    }
+
+    // ========== HELPER ==========
     static int inputInt() {
         while (!sc.hasNextInt()) {
-            System.out.print("Masukkan angka valid: ");
+            System.out.print("Angka valid: ");
             sc.next();
         }
         return sc.nextInt();
     }
 
-    static LocalDate inputDate(String prompt) {
-        System.out.print(prompt);
+    static LocalDate inputDate() {
+        String d = sc.nextLine();
         try {
-            return LocalDate.parse(sc.nextLine(), DateTimeFormatter.ISO_LOCAL_DATE);
+            return LocalDate.parse(d);
         } catch (DateTimeParseException e) {
             System.out.println("Format salah (yyyy-mm-dd).");
             return null;
         }
-    }
-
-    static void seedData() {
-     
-        users.add(new User("admin", "admin@mail.com", "123", "08123456789"));
-
-        List<Room> roomsA = new ArrayList<>();
-        roomsA.add(new Room("Superior", 600000, "WiFi, Breakfast", 3));
-        roomsA.add(new Room("Deluxe",  1200000,"WiFi, Breakfast, Mini Bar", 2));
-
-        List<Room> roomsB = new ArrayList<>();
-        roomsB.add(new Room("Standard",400000, "WiFi", 5));
-        roomsB.add(new Room("Suite",   1500000,"WiFi, Breakfast, Living Room", 1));
-        hotels.add(new Hotel("Hotel Santika", "Jakarta", "Bintang 4", roomsA));
-        hotels.add(new Hotel("Santika Premiere", "Medan", "Bintang 4", roomsB));
-        promos.add(new Promo("MINGGU10", 0.10, "Diskon 10% jika check‑in hari Minggu", "SUNDAY"));
-        promos.add(new Promo("LIBUR20", 0.20, "Diskon 20% hari libur (belum diatur)", "HOLIDAY"));
-        serviceCatalog.add(new ServiceItem("Spa & Massage", 200000));
-        serviceCatalog.add(new ServiceItem("Makan Malam Spesial", 150000));
-        serviceCatalog.add(new ServiceItem("Minuman Welcome Drink", 50000));
     }
 }

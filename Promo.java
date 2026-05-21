@@ -1,35 +1,37 @@
 package hotel;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 
 public class Promo {
+    private int idPromo;
     private String code;
-    private double discountPercent; 
-    private String description;
+    private String deskripsi;
+    private double discountValue; 
+    private LocalDate startDate; 
+    private LocalDate endDate;
 
-
-    private String condition; 
-
-    public Promo(String code, double discountPercent, String description, String condition) {
+    public Promo(int idPromo, String code, double discountPercent, String descripsi, LocalDate startDate, LocalDate endDate) {
+        this.idPromo = idPromo;
         this.code = code;
-        this.discountPercent = discountPercent;
-        this.description = description;
-        this.condition = condition;
+        this.discountValue = discountPercent;
+        this.deskripsi = descripsi;
+        this.startDate = startDate;
+        this.endDate = endDate;
     }
 
+
+    public int getIdPromo(){return idPromo; }
     public String getCode()            { return code; }
-    public double getDiscountPercent() { return discountPercent; }
-    public String getDescription()     { return description; }
+    public double getDiscountPercent() {return discountValue / 100.0;}
+    public double getDiscountValue() { return discountValue; }
+    public String getDescription()     { return deskripsi; }
 
     public boolean isValidForDate(LocalDate date) {
-        if (condition.equals("SUNDAY")) {
-            return date.getDayOfWeek() == DayOfWeek.SUNDAY;
-        }
-        return false; 
+        return (date.isEqual(startDate) || date.isAfter(startDate)) &&
+               (date.isEqual(endDate) || date.isBefore(endDate));
     }
 
     @Override
     public String toString() {
-        return "Kode: " + code + " | Diskon: " + (int)(discountPercent*100) + "% | " + description;
+        return "Kode: " + code + " | Diskon: " + (int)(discountValue) + "% | " + deskripsi + " | Berlaku: " + startDate + " s/d " + endDate;
     }
 }

@@ -3,25 +3,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Hotel {
+    private int idHotel;          // dari database
     private String name;
-    private String location;
-    private String starRating;
+    private String location;      // ganti nama field menjadi location agar seragam
+    private String starRating;    // rating dalam bentuk string, misal "Bintang 4.5"
+    private String deskripsi;     // deskripsi hotel (alamat lengkap, fasilitas hotel)
     private List<Room> rooms;
 
-    public Hotel(String name, String location, String starRating, List<Room> rooms) {
+    public Hotel(int idHotel, String name, String location, String starRating, String deskripsi, List<Room> rooms) {
+        this.idHotel = idHotel;
         this.name = name;
         this.location = location;
         this.starRating = starRating;
-        this.rooms = new ArrayList<>(rooms); 
+        this.deskripsi = deskripsi;
+        this.rooms = new ArrayList<>(rooms);   // defensive copy
     }
 
-    public String getName()      { return name; }
-    public String getLocation()  { return location; }
-    public String getStarRating(){ return starRating; }
+    public int getIdHotel() { return idHotel; }
+    public String getName() { return name; }
+    public String getLocation() { return location; }
+    public String getStarRating() { return starRating; }
+    public String getDeskripsi() { return deskripsi; }
     public List<Room> getRooms() { return rooms; }
 
     public Room getRoom(int index) {
-        if (index > 0 && index <= rooms.size()) return rooms.get(index-1);
+        if (index > 0 && index <= rooms.size())
+            return rooms.get(index - 1);
         return null;
     }
 }
