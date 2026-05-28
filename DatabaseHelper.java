@@ -328,7 +328,6 @@ public class DatabaseHelper {
         return bookings;
     }
 
-    // ======================= LAYANAN TAMBAHAN =======================
     
     // load daftar spa berdasarkan hotel (mengembalikan ServiceItem)
     public static List<ServiceItem> loadSpaMenu(int hotelId) {

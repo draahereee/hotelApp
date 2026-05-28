@@ -38,7 +38,7 @@ public class Booking {
         this.servicesOrdered = new ArrayList<>();
     }
 
-    // Constructor singkat (tanpa status dan promo) – bisa untuk membuat objek sementara
+    // Constructor singkat (8 parameter) – digunakan saat buat booking baru
     public Booking(int idReservasi, User user, Hotel hotel, Room room,
                    LocalDate checkInDate, LocalDate checkoutDate,
                    int totalPrice, String paymentMethod) {
@@ -67,7 +67,7 @@ public class Booking {
     // Memperbarui status semua layanan dalam booking ini
     public void refreshServiceStatuses() {
         for (ServiceOrder so : servicesOrdered) {
-            so.refreshStatus();  // asumsikan ServiceOrder punya method ini
+            so.refreshStatus();  
         }
     }
 

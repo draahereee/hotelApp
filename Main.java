@@ -105,9 +105,9 @@ public class Main {
         // Urutan: idAkun, username, email, password, phone, alamat, nama, jenisKelamin
         User newUser = new User(0, u, e, p, n, alamat, nama, jk); // perbaikan urutan
         if (DatabaseHelper.registerUser(newUser)) {
-            System.out.println("✅ Registrasi berhasil! Silakan login.");
+            System.out.println("Registrasi berhasil! Silakan login.");
         } else {
-            System.out.println("❌ Registrasi gagal.");
+            System.out.println("Registrasi gagal.");
         }
     }
 
@@ -116,9 +116,9 @@ public class Main {
         System.out.print("Password: "); String p = sc.nextLine();
         loggedUser = DatabaseHelper.loginUser(u, p);
         if (loggedUser != null) {
-            System.out.println("🎉 Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!");
+            System.out.println("Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!");
         } else {
-            System.out.println("❌ Login gagal. Periksa username dan password.");
+            System.out.println("Login gagal. Periksa username dan password.");
         }
     }
 
@@ -244,7 +244,7 @@ public class Main {
                 }
                 Room kamar = rooms.get(pilihKamar - 1);
                 if (kamar.getStock() <= 0) {
-                    System.out.println("❌ Stok kamar ini habis.");
+                    System.out.println("Stok kamar ini habis.");
                     continue;
                 }
 
@@ -253,7 +253,7 @@ public class Main {
                 LocalDate checkIn = inputDate();  // panggil method tanpa parameter
                 if (checkIn == null) continue;
                 if (checkIn.isBefore(LocalDate.now())) {
-                    System.out.println("❌ Tanggal tidak boleh di masa lalu.");
+                    System.out.println("Tanggal tidak boleh di masa lalu.");
                     continue;
                 }
 
@@ -261,7 +261,7 @@ public class Main {
                 int malam = inputInt();
                 sc.nextLine();
                 if (malam < 1) {
-                    System.out.println("❌ Minimal 1 malam.");
+                    System.out.println("Minimal 1 malam.");
                     continue;
                 }
 
@@ -279,9 +279,9 @@ public class Main {
                         }
                     }
                     if (promoAktif == null) {
-                        System.out.println("❌ Kode tidak valid atau tidak berlaku.");
+                        System.out.println("Kode tidak valid atau tidak berlaku.");
                     } else {
-                        System.out.println("✅ Promo diterapkan: " + promoAktif.getCode());
+                        System.out.println("Promo diterapkan: " + promoAktif.getCode());
                     }
                 }
 
@@ -299,7 +299,7 @@ public class Main {
                 System.out.print("Metode Pembayaran (transfer_bank / e_wallet): ");
                 String metode = sc.nextLine().toLowerCase().trim();
                 if (!metode.equals("transfer_bank") && !metode.equals("e_wallet")) {
-                    System.out.println("❌ Metode pembayaran hanya 'transfer_bank' atau 'e_wallet'.");
+                    System.out.println("Metode pembayaran hanya 'transfer_bank' atau 'e_wallet'.");
                     continue;
                 }
 
@@ -426,9 +426,9 @@ public class Main {
                     terpilih.getName(), terpilih.getPrice(), jumlah, total,
                     ServiceOrder.OrderStatus.DIPROSES, LocalDateTime.now());
             b.addService(so);
-            System.out.println("✅ Pesanan " + jenis + " berhasil! Status: Diproses.");
+            System.out.println("Pesanan " + jenis + " berhasil! Status: Diproses.");
         } else {
-            System.out.println("❌ Gagal memesan " + jenis + ".");
+            System.out.println("Gagal memesan " + jenis + ".");
         }
     }
 
@@ -456,9 +456,9 @@ public class Main {
             DatabaseHelper.updateStock(b.getRoom().getIdKamar(), b.getRoom().getStock());
             DatabaseHelper.updateReservationStatus(b.getIdReservasi(), "dibatalkan");
             b.setStatus(Booking.Status.REFUNDED);
-            System.out.println("✅ Refund berhasil.");
+            System.out.println("Refund berhasil.");
         } else {
-            System.out.println("❌ Tidak bisa refund.");
+            System.out.println("Tidak bisa refund.");
         }
     }
 
@@ -481,9 +481,9 @@ public class Main {
         if (!jk.isEmpty()) loggedUser.setJenisKelamin(jk);
 
         if (DatabaseHelper.updateProfile(loggedUser))
-            System.out.println("✅ Profil diperbarui.");
+            System.out.println("Profil diperbarui.");
         else
-            System.out.println("❌ Gagal memperbarui profil.");
+            System.out.println("Gagal memperbarui profil.");
     }
 
     // ========== HELPER ==========
