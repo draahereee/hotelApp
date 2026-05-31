@@ -128,6 +128,7 @@ public class Main {
     }
 
     static void cariHotel() {
+        clearScreen();
         Set<String> cities = hotels.stream()
                 .map(Hotel::getLocation)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -143,6 +144,7 @@ public class Main {
             System.out.print("Pilih: ");
             int pilihKota = inputInt();
             sc.nextLine();
+            
             if (pilihKota == 0) return;
             if (pilihKota < 1 || pilihKota > cities.size()) {
                 System.out.println("Pilihan tidak valid.");
@@ -185,7 +187,7 @@ public class Main {
                                 "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
                     }
                     System.out.println("0. Kembali ke Daftar Hotel");
-                    System.out.print("(Hanya lihat) Pilih 0: ");
+                    System.out.print("Pilih 0 untuk kembali, atau ketik 'P' untuk langsung pesan: ");
                     int pilih = inputInt();
                     sc.nextLine();
                     if (pilih == 0) break;
@@ -196,6 +198,7 @@ public class Main {
     }
 
     static void bookingHotel() {
+        clearScreen();
         System.out.println("\n--- BOOKING HOTEL ---");
         System.out.print("Masukkan kota tujuan: ");
         String kota = sc.nextLine();
@@ -311,11 +314,11 @@ public class Main {
                     System.out.println("Pesanan dibatalkan.");
                     return;
                 }
-
                     
                 Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
                         checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
                 int reservasiId = DatabaseHelper.createReservation(newBooking);
+                
                 if (reservasiId > 0) {
                     System.out.println("Booking berhasil! ID reservasi: " + reservasiId);
                 } else {
@@ -327,6 +330,7 @@ public class Main {
     }
 
     static void tampilkanPromo() {
+        clearScreen();
         System.out.println("\n--- DAFTAR PROMO ---");
         for (Promo p : promos) {
             System.out.println(p);
@@ -335,6 +339,7 @@ public class Main {
     }
 
     static void layananTambahan() {
+        clearScreen();
         List<Booking> inap = bookings.stream()
                 .filter(b -> b.getStatus() == Booking.Status.CHECKED_IN
                         && b.getUser().getIdAkun() == loggedUser.getIdAkun())
@@ -353,6 +358,7 @@ public class Main {
         System.out.print("Pilih (0 = batal): ");
         int idx = inputInt();
         sc.nextLine();
+        
         if (idx == 0 || idx < 1 || idx > inap.size()) return;
         Booking b = inap.get(idx - 1);
 
@@ -433,6 +439,7 @@ public class Main {
     }
 
     static void pesananSaya() {
+        clearScreen();
         System.out.println("\n--- PESANAN SAYA ---");
         for (int i = 0; i < bookings.size(); i++) {
             Booking b = bookings.get(i);
@@ -444,13 +451,17 @@ public class Main {
                 }
             }
         }
+        
         System.out.print("Refund? (Y/N): ");
         if (!sc.nextLine().equalsIgnoreCase("Y")) return;
+        
         System.out.print("Nomor urut: ");
         int idx = inputInt();
         sc.nextLine();
+        
         if (idx < 1 || idx > bookings.size()) return;
         Booking b = bookings.get(idx - 1);
+        
         if (b.isRefundable()) {
             b.getRoom().increaseStock();
             DatabaseHelper.updateStock(b.getRoom().getIdKamar(), b.getRoom().getStock());
@@ -463,6 +474,7 @@ public class Main {
     }
 
     static void editProfile() {
+        clearScreen();
         System.out.println("\n--- EDIT PROFIL ---");
         System.out.print("Nama [" + loggedUser.getNamaString() + "]: ");
         String nama = sc.nextLine();
@@ -503,5 +515,11 @@ public class Main {
             System.out.println("Format salah (yyyy-mm-dd).");
             return null;
         }
+    }
+
+    public static void clearScreen() {
+    // Perintah ANSI untuk membersihkan layar dan memindah kursor ke atas
+    System.out.print("\033[H\033[2J");
+    System.out.flush();
     }
 }

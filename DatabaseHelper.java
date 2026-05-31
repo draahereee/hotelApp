@@ -1,6 +1,8 @@
 package hotel;
 
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -156,13 +158,19 @@ public class DatabaseHelper {
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
+                // Perbaikan Konsep 2: Menangani potensi NullPointerException pada tanggal
+                Date berlakuDariSql = rs.getDate("berlaku_dari");
+                Date berlakuHinggaSql = rs.getDate("berlaku_hingga");
+                LocalDate berlakuDari = (berlakuDariSql != null) ? berlakuDariSql.toLocalDate() : LocalDate.MIN;
+                LocalDate berlakuHingga = (berlakuHinggaSql != null) ? berlakuHinggaSql.toLocalDate() : LocalDate.MAX;
+
                 promos.add(new Promo(
                     rs.getInt("id_promo"),
                     rs.getString("kode_promo"),
-                    rs.getDouble("nilai_diskon"), // diskon sebagai desimal, perlu dikonversi jika ingin persen
+                    rs.getDouble("nilai_diskon"),
                     rs.getString("deskripsi"),
-                    rs.getDate("berlaku_dari").toLocalDate(),
-                    rs.getDate("berlaku_hingga").toLocalDate()
+                    berlakuDari,
+                    berlakuHingga
                 ));
             }
         } catch (SQLException e) {
@@ -173,14 +181,32 @@ public class DatabaseHelper {
 
     // ======================= RESERVASI & PEMBAYARAN =======================
     public static int createReservation(Booking booking) {
+        System.out.println("Creating reservation for user " + booking.getUser().getUsername() +
+                           " in hotel " + booking.getHotel().getName() +
+                           " room " + booking.getRoom().getNomorKamar());
         String sqlReservasi = "INSERT INTO sistem.reservasi (id_pelanggan, id_kamar, id_promo, masuk_kamar, keluar_kamar, harga_total, status_reservasi) " +
                               "VALUES (?, ?, ?, ?, ?, ?, ?::sistem.status_pemesanan) RETURNING id_reservasi";
         String sqlPembayaran = "INSERT INTO sistem.pembayaran (id_reservasi, metode_pembayaran) VALUES (?, ?::sistem.cara_bayar)";
+        
+        // Perbaikan Konsep 1: Mengurangi stok secara aman di level database untuk mencegah Overbooking
+        String sqlKurangiStok = "UPDATE sistem.kamar SET stok = stok - 1 WHERE id_kamar = ? AND stok > 0";
+        
         int reservasiId = 0;
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
 
-            // insert reservasi
+            // 1. Amankan Stok Terlebih Dahulu
+            try (PreparedStatement psStok = conn.prepareStatement(sqlKurangiStok)) {
+                psStok.setInt(1, booking.getRoom().getIdKamar());
+                int affectedRows = psStok.executeUpdate();
+                if (affectedRows == 0) {
+                    System.out.println("Gagal booking: Stok kamar sudah habis!");
+                    conn.rollback(); // Batalkan transaksi
+                    return 0;
+                }
+            }
+
+            // 2. Insert reservasi
             try (PreparedStatement ps = conn.prepareStatement(sqlReservasi)) {
                 int idPelanggan = getPelangganIdByAkun(booking.getUser().getIdAkun(), conn);
                 ps.setInt(1, idPelanggan);
@@ -201,19 +227,16 @@ public class DatabaseHelper {
                     throw new SQLException("Gagal insert reservasi");
                 }
             }
-
-            // insert pembayaran
+            
+            // 3. Insert pembayaran
             try (PreparedStatement psPemb = conn.prepareStatement(sqlPembayaran)) {
                 psPemb.setInt(1, reservasiId);
                 psPemb.setString(2, booking.getPaymentMethod());
                 psPemb.executeUpdate();
             }
-
-            // kurangi stok
-            Room room = booking.getRoom();
-            updateStock(room.getIdKamar(), room.getStock() - 1);
-
+            
             conn.commit();
+            System.out.println("Inserted reservation & payment with ID " + reservasiId);
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -268,7 +291,7 @@ public class DatabaseHelper {
             while (rs.next()) {
                 // build User minimal (hanya perlu idAkun)
                 User user = new User(idAkun, "", "", "", "", "", "", "");
-                // Hotel
+                
                 Hotel hotel = new Hotel(
                     rs.getInt("id_hotel"),
                     rs.getString("nama_hotel"),
@@ -277,7 +300,7 @@ public class DatabaseHelper {
                     rs.getString("deskripsi"),
                     new ArrayList<>()
                 );
-                // Room
+                
                 Room room = new Room(
                     rs.getInt("id_kamar"),
                     rs.getInt("nomor_kamar"),
@@ -286,19 +309,21 @@ public class DatabaseHelper {
                     rs.getString("fasilitas"),
                     rs.getInt("stok")
                 );
-                // Promo
+                
                 Promo promo = null;
                 if (rs.getObject("id_promo") != null) {
+                    Date bdSql = rs.getDate("berlaku_dari");
+                    Date bhSql = rs.getDate("berlaku_hingga");
                     promo = new Promo(
                         rs.getInt("id_promo"),
                         rs.getString("kode_promo"),
                         rs.getDouble("nilai_diskon"),
                         rs.getString("promo_desc"),
-                        rs.getDate("berlaku_dari").toLocalDate(),
-                        rs.getDate("berlaku_hingga").toLocalDate()
+                        bdSql != null ? bdSql.toLocalDate() : LocalDate.MIN,
+                        bhSql != null ? bhSql.toLocalDate() : LocalDate.MAX
                     );
                 }
-                // Status
+                
                 String statusStr = rs.getString("status_reservasi");
                 Booking.Status status = Booking.Status.valueOf(
                     statusStr.toUpperCase()
@@ -308,15 +333,21 @@ public class DatabaseHelper {
                             .replace("DIBATALKAN", "REFUNDED")
                 );
 
+                // Perbaikan Konsep 2: Menangani potensi null dari kolom tanggal booking
+                Date masukSql = rs.getDate("masuk_kamar");
+                Date keluarSql = rs.getDate("keluar_kamar");
+                LocalDate masuk = masukSql != null ? masukSql.toLocalDate() : LocalDate.now();
+                LocalDate keluar = keluarSql != null ? keluarSql.toLocalDate() : LocalDate.now().plusDays(1);
+
                 Booking b = new Booking(
                     rs.getInt("id_reservasi"),
                     user,
                     hotel,
                     room,
-                    rs.getDate("masuk_kamar").toLocalDate(),
-                    rs.getDate("keluar_kamar").toLocalDate(),
+                    masuk,
+                    keluar,
                     rs.getInt("harga_total"),
-                    rs.getString("metode_pembayaran"),
+                    rs.getString("metode_pembayaran") != null ? rs.getString("metode_pembayaran") : "Transfer",
                     status,
                     promo
                 );
@@ -343,7 +374,7 @@ public class DatabaseHelper {
                 int id = rs.getInt("id_layanan_spa");
                 String name = rs.getString("nama_layanan");
                 int price = rs.getInt("harga");
-                list.add(new ServiceItem(id, name, price)); // ServiceItem harus bisa menyimpan id
+                list.add(new ServiceItem(id, name, price));
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return list;
@@ -443,6 +474,7 @@ public class DatabaseHelper {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 ServiceOrder.OrderStatus status = statusFromString(rs.getString("status"));
+                Timestamp ts = rs.getTimestamp("tanggal_spa");
                 list.add(new ServiceOrder(
                     rs.getInt("id_pemesanan_spa"),
                     rs.getInt("id_reservasi"),
@@ -452,7 +484,7 @@ public class DatabaseHelper {
                     rs.getInt("jumlah_orang"),
                     rs.getInt("total_harga"),
                     status,
-                    rs.getTimestamp("tanggal_spa").toLocalDateTime()
+                    ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
                 ));
             }
         } catch (SQLException e) { e.printStackTrace(); }
@@ -468,6 +500,7 @@ public class DatabaseHelper {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 ServiceOrder.OrderStatus status = statusFromString(rs.getString("status"));
+                Timestamp ts = rs.getTimestamp("waktu_pesan");
                 list.add(new ServiceOrder(
                     rs.getInt("id_pesanan_makanan"),
                     rs.getInt("id_reservasi"),
@@ -477,7 +510,7 @@ public class DatabaseHelper {
                     rs.getInt("jumlah"),
                     rs.getInt("total_harga"),
                     status,
-                    rs.getTimestamp("waktu_pesan").toLocalDateTime()
+                    ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
                 ));
             }
         } catch (SQLException e) { e.printStackTrace(); }
@@ -493,6 +526,7 @@ public class DatabaseHelper {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 ServiceOrder.OrderStatus status = statusFromString(rs.getString("status"));
+                Timestamp ts = rs.getTimestamp("waktu_pesan");
                 list.add(new ServiceOrder(
                     rs.getInt("id_pesanan_minuman"),
                     rs.getInt("id_reservasi"),
@@ -502,7 +536,7 @@ public class DatabaseHelper {
                     rs.getInt("jumlah"),
                     rs.getInt("total_harga"),
                     status,
-                    rs.getTimestamp("waktu_pesan").toLocalDateTime()
+                    ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
                 ));
             }
         } catch (SQLException e) { e.printStackTrace(); }
