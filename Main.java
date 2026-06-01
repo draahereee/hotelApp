@@ -14,9 +14,7 @@ public class Main {
     static User loggedUser = null;
     static Scanner sc = new Scanner(System.in);
 
-    // ==========================================
-    // STATE-BASED NAVIGASI
-    // ==========================================
+
     enum AppState {
         MAIN, CARI_HOTEL, BOOKING_HOTEL, PROMO, LAYANAN_TAMBAHAN, PESANAN_SAYA, PROFIL, LOGOUT
     }
@@ -28,71 +26,68 @@ public class Main {
         hotels = DatabaseHelper.loadAllHotels();
         promos = DatabaseHelper.loadAllPromos();
 
-        // Autentikasi
-        while (loggedUser == null) {
-            clearScreen();
-            System.out.println("\n=== APLIKASI BOOKING HOTEL ===");
-            System.out.println("1. Register");
-            System.out.println("2. Login");
-            System.out.println("3. Keluar");
-            System.out.print("Pilih: ");
+        while (true) {
             
-            String inputAuth = sc.nextLine().trim();
+            while (loggedUser == null) {
+                clearScreen();
+                System.out.println("\n=== APLIKASI BOOKING HOTEL ===");
+                System.out.println("1. Register");
+                System.out.println("2. Login");
+                System.out.println("3. Keluar");
+                System.out.print("Pilih: ");
+                
+                String inputAuth = sc.nextLine().trim();
 
-            if (inputAuth.equals("1")) {
-                register();
-            } else if (inputAuth.equals("2")) {
-                login();
-            } else if (inputAuth.equals("3")) {
-                System.out.println("Terima kasih! Sampai jumpa.");
-                return;
-            } else {
-                System.out.println("Pilihan tidak valid. Tekan Enter...");
-                sc.nextLine();
+                if (inputAuth.equals("1")) {
+                    register();
+                } else if (inputAuth.equals("2")) {
+                    login();
+                } else if (inputAuth.equals("3")) {
+                    System.out.println("Terima kasih! Sampai jumpa.");
+                    return; 
+                } else {
+                    System.out.println("Pilihan tidak valid. Tekan Enter...");
+                    sc.nextLine();
+                }
             }
+
+            navigasi.clear();
+            currentState = AppState.MAIN;
+
+            while (currentState != AppState.LOGOUT) {
+                if (currentState == AppState.MAIN) {
+                    refreshDatabase();
+                }
+
+                switch (currentState) {
+                    case MAIN:
+                        renderMainMenu();
+                        break;
+                    case CARI_HOTEL:
+                        cariHotel();
+                        break;
+                    case BOOKING_HOTEL:
+                        bookingHotel();
+                        break;
+                    case PROMO:
+                        tampilkanPromo();
+                        break;
+                    case LAYANAN_TAMBAHAN:
+                        layananTambahan();
+                        break;
+                    case PESANAN_SAYA:
+                        pesananSaya();
+                        break;
+                    case PROFIL:
+                        editProfile();
+                        break;
+                }
+            }
+
+            logout();
         }
-
-        // Reset state & history setelah sukses login
-        navigasi.clear();
-        currentState = AppState.MAIN;
-
-        // Loop Utama State Machine
-        while (currentState != AppState.LOGOUT) {
-            if (currentState == AppState.MAIN) {
-                refreshDatabase();
-            }
-
-            switch (currentState) {
-                case MAIN:
-                    renderMainMenu();
-                    break;
-                case CARI_HOTEL:
-                    cariHotel();
-                    break;
-                case BOOKING_HOTEL:
-                    bookingHotel();
-                    break;
-                case PROMO:
-                    tampilkanPromo();
-                    break;
-                case LAYANAN_TAMBAHAN:
-                    layananTambahan();
-                    break;
-                case PESANAN_SAYA:
-                    pesananSaya();
-                    break;
-                case PROFIL:
-                    editProfile();
-                    break;
-            }
-        }
-
-        logout();
     }
 
-    // ==========================================
-    // NAVIGASI GLOBAL
-    // ==========================================
     static void navigasiKe(AppState tujuan) {
         navigasi.push(currentState);
         currentState = tujuan;
@@ -120,9 +115,6 @@ public class Main {
         System.out.flush();
     }
 
-    // ==========================================
-    // LOGIKA DATABASE & MENU UTAMA
-    // ==========================================
     static void refreshDatabase() {
         bookings = DatabaseHelper.loadBookingsForUser(loggedUser.getIdAkun());
         for (Booking b : bookings) {
@@ -225,9 +217,6 @@ public class Main {
         System.out.println("Pilih menu:");
     }
 
-    // ==========================================
-    // LOGIKA AUTENTIKASI
-    // ==========================================
     static void register() {
         clearScreen();
         System.out.println("\n--- REGISTRASI AKUN BARU ---");
@@ -313,12 +302,10 @@ public class Main {
 
     static void logout() {
         loggedUser = null;
-        System.out.println("Anda telah logout.");
+        System.out.println("Anda telah logout. Tekan Enter untuk kembali ke menu awal...");
+        sc.nextLine();
     }
 
-    // ==========================================
-    // LOGIKA BISNIS (FITUR APLIKASI)
-    // ==========================================
     static void cariHotel() {
         printHeader("Main > Cari Hotel");
         Set<String> cities = hotels.stream()
@@ -551,7 +538,6 @@ public class Main {
                         continue;
                     }
 
-                    // INTEGRITAS TRANSAKSI: Kurangi stok sebelum/bersamaan reservasi
                     kamar.setStock(kamar.getStock() - 1); 
                     DatabaseHelper.updateStock(kamar.getIdKamar(), kamar.getStock());
 
@@ -563,8 +549,8 @@ public class Main {
                         System.out.println(">>> Booking berhasil! ID reservasi: " + reservasiId);
                     } else {
                         System.out.println(">>> Gagal booking. Data dikembalikan.");
-                        kamar.setStock(kamar.getStock() + 1); // Rollback di memory
-                        DatabaseHelper.updateStock(kamar.getIdKamar(), kamar.getStock()); // Rollback DB
+                        kamar.setStock(kamar.getStock() + 1); 
+                        DatabaseHelper.updateStock(kamar.getIdKamar(), kamar.getStock()); 
                     }
                     
                     System.out.print("\nTekan Enter untuk kembali ke Menu Utama...");
