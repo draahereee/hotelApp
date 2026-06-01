@@ -66,9 +66,7 @@ public class Main {
                 b.getServices().addAll(serv);
             }
 
-            System.out.println("\n=================================");
-            System.out.println("       DASHBOARD UTAMA           ");
-            System.out.println("=================================");
+            tampilkanDashboard();
             System.out.println("1. Cari Hotel (Jelajah)");
             System.out.println("2. Booking Hotel (Pesan Langsung)");
             System.out.println("3. Promo Tersedia");
@@ -94,20 +92,78 @@ public class Main {
     }
 
     static void register() {
-        System.out.print("Username: ");     String u = sc.nextLine();
-        System.out.print("Email: ");        String e = sc.nextLine();
-        System.out.print("Password: ");     String p = sc.nextLine();
-        System.out.print("No. Handphone: ");String n = sc.nextLine();
-        System.out.print("Nama Lengkap: "); String nama = sc.nextLine();
-        System.out.print("Alamat: ");       String alamat = sc.nextLine();
-        System.out.print("Jenis Kelamin: "); String jk = sc.nextLine();
+        clearScreen();
+        System.out.println("\n--- REGISTRASI AKUN BARU ---");
+        System.out.println("(Isi data berikut. Ketik 0 kapan saja untuk batal.)\n");
 
-        // Urutan: idAkun, username, email, password, phone, alamat, nama, jenisKelamin
-        User newUser = new User(0, u, e, p, n, alamat, nama, jk); // perbaikan urutan
+        String u, e, p, n, nama, alamat, jk;
+
+        // Username
+        while (true) {
+            System.out.print("Username (huruf kecil/angka/_, 3-20 karakter): ");
+            u = sc.nextLine().trim();
+            if (u.equals("0")) return;
+            if (u.matches("^[a-z0-9_]{3,20}$")) break;
+            System.out.println(" Username tidak valid. Gunakan huruf kecil, angka, dan underscore saja (3-20 karakter).");
+        }
+
+        // Email
+        while (true) {
+            System.out.print("Email (contoh: nama@domain.com): ");
+            e = sc.nextLine().trim();
+            if (e.equals("0")) return;
+            if (e.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) break;
+            System.out.println(" Format email salah. Pastikan mengandung '@' dan domain (contoh: user@mail.com).");
+        }
+
+        // Password
+        while (true) {
+            System.out.print("Password (minimal 6 karakter): ");
+            p = sc.nextLine();
+            if (p.equals("0")) return;
+            if (p.length() >= 6) break;
+            System.out.println(" Password terlalu pendek. Minimal 6 karakter.");
+        }
+
+        // No HP
+        while (true) {
+            System.out.print("No. HP (hanya angka, 10-13 digit): ");
+            n = sc.nextLine().trim();
+            if (n.equals("0")) return;
+            if (n.matches("^\\d{10,13}$")) break;
+            System.out.println(" No HP hanya boleh berisi angka 10-13 digit.");
+        }
+
+        // Nama Lengkap
+        while (true) {
+            System.out.print("Nama Lengkap (hanya huruf & spasi): ");
+            nama = sc.nextLine().trim();
+            if (nama.equals("0")) return;
+            if (!nama.isEmpty() && nama.matches("^[A-Za-z .'-]+$")) break;
+            System.out.println(" Nama tidak boleh kosong dan hanya boleh huruf, spasi, titik, apostrof.");
+        }
+
+        // Alamat (opsional)
+        System.out.print("Alamat (opsional, ketik '-' untuk kosong): ");
+        alamat = sc.nextLine().trim();
+        if (alamat.equals("0")) return;
+        if (alamat.equals("-")) alamat = "";
+
+        // Jenis Kelamin
+        while (true) {
+            System.out.print("Jenis Kelamin (L/P): ");
+            jk = sc.nextLine().trim();
+            if (jk.equals("0")) return;
+            if (jk.equalsIgnoreCase("L") || jk.equalsIgnoreCase("P")) break;
+            System.out.println(" Masukkan 'L' untuk Laki-laki atau 'P' untuk Perempuan.");
+        }
+
+        // Buat user & simpan
+        User newUser = new User(0, u, e, p, n, alamat, nama, jk);
         if (DatabaseHelper.registerUser(newUser)) {
-            System.out.println("Registrasi berhasil! Silakan login.");
+            System.out.println("\n Registrasi berhasil! Silakan login.");
         } else {
-            System.out.println("Registrasi gagal.");
+            System.out.println("\n Registrasi gagal. Username atau email mungkin sudah digunakan.");
         }
     }
 
@@ -440,37 +496,72 @@ public class Main {
 
     static void pesananSaya() {
         clearScreen();
-        System.out.println("\n--- PESANAN SAYA ---");
+        System.out.println("================================================================================================================");
+        System.out.println("                                    RIWAYAT PESANAN SAYA                   ");
+        System.out.println("================================================================================================================");
+        
+        String mainHeader = "%-4s | %-20s | %-10s | %-12s | %-15s | %-25s\n";
+        String mainRow    = "%-4d | %-20s | %-10s | %-12s | %-15s | %-25s\n";
+
+        System.out.println("==========================================================================================================");
+        System.out.printf(mainHeader, "No", "Hotel", "No. Kamar", "Status", "Total Harga", "Periode Menginap");
+        System.out.println("----------------------------------------------------------------------------------------------------------");
+
+        // Loop data
         for (int i = 0; i < bookings.size(); i++) {
             Booking b = bookings.get(i);
-            System.out.println((i + 1) + ". " + b.info());
+            
+            // Print Baris Utama
+            System.out.printf(mainRow, (i + 1), b.getHotel().getName(), b.getRoom().getNomorKamar(), b.getStatus(), "Rp " + b.getTotalPrice(),
+            b.getCheckInDate() + " - " + b.getCheckoutDate());
+
+            // --- Sub-tabel Layanan ---
             if (!b.getServices().isEmpty()) {
-                System.out.println("   Layanan:");
+                // Indentasi disesuaikan agar sejajar dengan kolom "Hotel" atau sedikit menjorok
+                System.out.println("      └── Detail Layanan Tambahan:");
+                
+                // Header Layanan dengan indentasi
+                String subHeader = "          %-15s | %-10s | %-5s | %-10s | %-10s\n";
+                System.out.printf(subHeader, "Layanan", "Harga", "Qty", "Total", "Status");
+                System.out.println("          ------------------------------------------------------------");
+                
                 for (ServiceOrder so : b.getServices()) {
-                    System.out.println("     " + so);
+                    // Row Layanan
+                    System.out.printf(subHeader, so.getNamaLayanan(), "Rp"+so.getHarga(), so.getJumlah(), "Rp"+so.getTotalHarga(), so.getStatus());
                 }
             }
+            System.out.println("----------------------------------------------------------------------------------------------------------");
         }
-        
-        System.out.print("Refund? (Y/N): ");
+                
+        // --- Logika Refund ---
+        System.out.print("\nRefund pesanan? (Y/N): ");
         if (!sc.nextLine().equalsIgnoreCase("Y")) return;
         
-        System.out.print("Nomor urut: ");
+        System.out.print("Masukkan nomor urut: ");
         int idx = inputInt();
-        sc.nextLine();
+        sc.nextLine(); // Membersihkan buffer
         
-        if (idx < 1 || idx > bookings.size()) return;
+        if (idx < 1 || idx > bookings.size()) {
+            System.out.println("Nomor urut tidak valid.");
+            return;
+        }
+        
         Booking b = bookings.get(idx - 1);
         
         if (b.isRefundable()) {
+            // Proses Refund
             b.getRoom().increaseStock();
             DatabaseHelper.updateStock(b.getRoom().getIdKamar(), b.getRoom().getStock());
             DatabaseHelper.updateReservationStatus(b.getIdReservasi(), "dibatalkan");
             b.setStatus(Booking.Status.REFUNDED);
-            System.out.println("Refund berhasil.");
+            
+            System.out.println(">>> Refund berhasil diproses.");
         } else {
-            System.out.println("Tidak bisa refund.");
+            System.out.println(">>> Maaf, pesanan ini tidak dapat di-refund.");
         }
+        
+        System.out.print("\nTekan Enter untuk kembali...");
+        sc.nextLine();
     }
 
     static void editProfile() {
@@ -521,5 +612,69 @@ public class Main {
     // Perintah ANSI untuk membersihkan layar dan memindah kursor ke atas
     System.out.print("\033[H\033[2J");
     System.out.flush();
+    }
+
+    static void tampilkanDashboard() {
+    clearScreen();
+    System.out.println("================================================");
+    System.out.println("           DASHBOARD UTAMA - HotelKu            ");
+    System.out.println("================================================");
+    
+    // Sapaan personal
+    System.out.println(" Selamat datang, " + loggedUser.getNamaString() + "!");
+    
+    // Statistik booking
+    int dikonfirmasi = 0, checkIn = 0, checkOut = 0, refunded = 0;
+    int layananDiproses = 0;
+    boolean adaCheckInHariIni = false;
+    
+    for (Booking b : bookings) {
+        switch (b.getStatus()) {
+            case CONFIRMED: dikonfirmasi++; break;
+            case CHECKED_IN: 
+                checkIn++;
+                if (b.getCheckInDate().equals(LocalDate.now())) {
+                    adaCheckInHariIni = true;
+                }
+                break;
+            case CHECKED_OUT: checkOut++; break;
+            case REFUNDED: refunded++; break;
+        }
+        
+        // Hitung layanan yang masih berjalan (Diproses / Diantar)
+        for (ServiceOrder so : b.getServices()) {
+            if (so.getStatus() == ServiceOrder.OrderStatus.DIPROSES ||
+                so.getStatus() == ServiceOrder.OrderStatus.DIANTAR) {
+                layananDiproses++;
+            }
+        }
+    }
+    
+    // Ringkasan booking
+    if (dikonfirmasi + checkIn + checkOut + refunded > 0) {
+        System.out.println("\n Ringkasan Booking:");
+        if (dikonfirmasi > 0) System.out.println("    Dikonfirmasi : " + dikonfirmasi);
+        if (checkIn > 0)      System.out.println("    Check‑in    : " + checkIn);
+        if (checkOut > 0)     System.out.println("    Check‑out   : " + checkOut);
+        if (refunded > 0)     System.out.println("    Direfund    : " + refunded);
+    } else {
+        System.out.println("\n Anda belum memiliki booking.");
+    }
+    
+    // Ringkasan layanan tambahan
+    if (layananDiproses > 0) {
+        System.out.println(" Layanan dalam proses : " + layananDiproses + " (Cek menu 'Pesanan Saya')");
+    }
+    
+    // Notifikasi kontekstual (muncul hanya saat relevan)
+    if (adaCheckInHariIni) {
+        System.out.println("\n Anda check‑in hari ini! Pesan layanan spa/makanan dari menu 'Layanan Tambahan'.");
+    }
+    if (dikonfirmasi > 0 && adaCheckInHariIni == false) {
+        System.out.println("\n Anda memiliki booking yang sudah dikonfirmasi. Pastikan check‑in tepat waktu.");
+    }
+    
+    System.out.println("\n------------------------------------------------");
+    System.out.println("Pilih menu:");
     }
 }
