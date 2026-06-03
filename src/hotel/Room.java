@@ -15,7 +15,7 @@ public class Room {
         this.facilities = facilities;
     }
 
-    // getter & setter
+   
     public int getIdKamar() { return idKamar; }
     public String getNomorKamar() { return nomorKamar; }
     public String getType() { return type; }

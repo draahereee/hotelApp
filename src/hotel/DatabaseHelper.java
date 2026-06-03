@@ -8,7 +8,7 @@ import java.util.List;
 
 public class DatabaseHelper {
 
-    // ======================= AUTH & PROFILE =======================
+
     public static User loginUser(String username, String password) {
         String sql = "SELECT a.id_akun, a.username, a.email, a.password, " +
                      "p.nama_pelanggan, p.no_hp, p.alamat, p.jenis_kelamin " +
@@ -21,7 +21,7 @@ public class DatabaseHelper {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 String dbPass = rs.getString("password");
-                if (dbPass.equals(password)) { // plaintext (gunakan BCrypt untuk produksi)
+                if (dbPass.equals(password)) { 
                     return new User(
                         rs.getInt("id_akun"),
                         rs.getString("username"),
@@ -89,7 +89,6 @@ public class DatabaseHelper {
         }
     }
 
-    // ======================= HOTEL & KAMAR =======================
     public static List<Hotel> loadAllHotels() {
         List<Hotel> hotelList = new ArrayList<>();
         String sql = "SELECT h.id_hotel, h.nama_hotel, h.lokasi_hotel, h.rating, h.deskripsi, " +
@@ -137,10 +136,7 @@ public class DatabaseHelper {
         return hotelList;
     }
 
-    // updateStock dihapus - tidak ada kolom stok di tabel kamar
-    // Sistem database menggunakan constraint tanggal untuk mencegah bentrok booking
 
-    // ======================= PROMO =======================
     public static List<Promo> loadAllPromos() {
         List<Promo> promos = new ArrayList<>();
         String sql = "SELECT id_promo, kode_promo, deskripsi, nilai_diskon, berlaku_dari, berlaku_hingga FROM sistem.promo";
@@ -148,7 +144,7 @@ public class DatabaseHelper {
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                // Perbaikan Konsep 2: Menangani potensi NullPointerException pada tanggal
+
                 Date berlakuDariSql = rs.getDate("berlaku_dari");
                 Date berlakuHinggaSql = rs.getDate("berlaku_hingga");
                 LocalDate berlakuDari = (berlakuDariSql != null) ? berlakuDariSql.toLocalDate() : LocalDate.MIN;
@@ -169,7 +165,6 @@ public class DatabaseHelper {
         return promos;
     }
 
-    // ======================= RESERVASI & PEMBAYARAN =======================
     public static int createReservation(Booking booking) {
         System.out.println("Creating reservation for user " + booking.getUser().getUsername() +
                            " in hotel " + booking.getHotel().getName() +
@@ -182,7 +177,6 @@ public class DatabaseHelper {
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
 
-            // 1. Insert reservasi (trigger database akan validasi bentrok tanggal)
             try (PreparedStatement ps = conn.prepareStatement(sqlReservasi)) {
                 int idPelanggan = getPelangganIdByAkun(booking.getUser().getIdAkun(), conn);
                 ps.setInt(1, idPelanggan);
@@ -195,7 +189,7 @@ public class DatabaseHelper {
                 ps.setDate(4, Date.valueOf(booking.getCheckInDate()));
                 ps.setDate(5, Date.valueOf(booking.getCheckoutDate()));
                 ps.setInt(6, booking.getTotalPrice());
-                ps.setString(7, "dikonfirmasi"); // status awal
+                ps.setString(7, "dikonfirmasi"); 
                 ResultSet rs = ps.executeQuery();
                 if (rs.next()) {
                     reservasiId = rs.getInt("id_reservasi");
@@ -204,7 +198,7 @@ public class DatabaseHelper {
                 }
             }
             
-            // 2. Insert pembayaran
+    
             try (PreparedStatement psPemb = conn.prepareStatement(sqlPembayaran)) {
                 psPemb.setInt(1, reservasiId);
                 psPemb.setString(2, booking.getPaymentMethod());
@@ -231,7 +225,7 @@ public class DatabaseHelper {
         }
     }
 
-    // helper: dapat id_pelanggan dari id_akun (hanya dipakai internal)
+
     private static int getPelangganIdByAkun(int idAkun, Connection conn) throws SQLException {
         String sql = "SELECT id_pelanggan FROM sistem.pelanggan WHERE id_akun = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -242,7 +236,7 @@ public class DatabaseHelper {
         }
     }
 
-    // ======================= LOAD BOOKING MILIK USER =======================
+
     public static List<Booking> loadBookingsForUser(int idAkun) {
         List<Booking> bookings = new ArrayList<>();
         String sql = "SELECT r.id_reservasi, r.masuk_kamar, r.keluar_kamar, r.harga_total, r.status_reservasi, " +
@@ -265,7 +259,7 @@ public class DatabaseHelper {
             ps.setInt(1, idAkun);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                // build User minimal (hanya perlu idAkun)
+
                 User user = new User(idAkun, "", "", "", "", "", "", "");
                 
                 Hotel hotel = new Hotel(
@@ -308,7 +302,6 @@ public class DatabaseHelper {
                             .replace("DIBATALKAN", "REFUNDED")
                 );
 
-                // Perbaikan Konsep 2: Menangani potensi null dari kolom tanggal booking
                 Date masukSql = rs.getDate("masuk_kamar");
                 Date keluarSql = rs.getDate("keluar_kamar");
                 LocalDate masuk = masukSql != null ? masukSql.toLocalDate() : LocalDate.now();
@@ -334,8 +327,7 @@ public class DatabaseHelper {
         return bookings;
     }
 
-    
-    // load daftar spa berdasarkan hotel (mengembalikan ServiceItem)
+
     public static List<ServiceItem> loadSpaMenu(int hotelId) {
         List<ServiceItem> list = new ArrayList<>();
         String sql = "SELECT id_layanan_spa, nama_layanan, harga " +
@@ -387,7 +379,6 @@ public class DatabaseHelper {
         return list;
     }
 
-    // Pemesanan layanan
     public static boolean orderSpa(int reservasiId, int layananSpaId, int jumlah, int hargaSatuan) {
         String sql = "INSERT INTO sistem.pemesanan_spa " +
                      "(id_reservasi, id_layanan_spa, tanggal_spa, jumlah_orang, total_harga) " +
@@ -435,10 +426,9 @@ public class DatabaseHelper {
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
 
-    // Load semua layanan yang telah dipesan untuk satu reservasi
     public static List<ServiceOrder> loadServiceOrdersForReservation(int reservasiId) {
         List<ServiceOrder> list = new ArrayList<>();
-        // Spa
+
         String sqlSpa = "SELECT ps.id_pemesanan_spa, ps.id_reservasi, ls.nama_layanan, ls.harga, " +
                         "ps.jumlah_orang, ps.total_harga, ps.status::text AS status, ps.tanggal_spa " +
                         "FROM sistem.pemesanan_spa ps JOIN sistem.layanan_spa ls ON ps.id_layanan_spa = ls.id_layanan_spa " +
@@ -464,7 +454,6 @@ public class DatabaseHelper {
             }
         } catch (SQLException e) { e.printStackTrace(); }
 
-        // Makanan dan Minuman (dari unified table pemesanan_fnb dan menu_fnb)
         String sqlMakanMinum = "SELECT pf.id_pesanan_fnb, pf.id_reservasi, mf.nama_item, mf.harga, mf.kategori, " +
                                "pf.jumlah, pf.total_harga, pf.status::text AS status, pf.waktu_pesan " +
                                "FROM sistem.pemesanan_fnb pf JOIN sistem.menu_fnb mf ON pf.id_menu = mf.id_menu " +
@@ -497,7 +486,7 @@ public class DatabaseHelper {
         return list;
     }
 
-    // helper untuk konversi string status ke enum ServiceOrder.OrderStatus
+
     private static ServiceOrder.OrderStatus statusFromString(String status) {
         if (status == null) return ServiceOrder.OrderStatus.DIPROSES;
         switch (status.toLowerCase()) {

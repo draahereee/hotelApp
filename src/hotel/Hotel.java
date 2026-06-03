@@ -3,11 +3,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Hotel {
-    private int idHotel;          // dari database
+    private int idHotel;         
     private String name;
-    private String location;      // ganti nama field menjadi location agar seragam
-    private String starRating;    // rating dalam bentuk string, misal "Bintang 4.5"
-    private String deskripsi;     // deskripsi hotel (alamat lengkap, fasilitas hotel)
+    private String location;      
+    private String starRating;    
+    private String deskripsi;     
     private List<Room> rooms;
 
     public Hotel(int idHotel, String name, String location, String starRating, String deskripsi, List<Room> rooms) {

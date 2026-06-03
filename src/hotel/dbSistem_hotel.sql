@@ -14,9 +14,6 @@ create table sistem.akun_pelanggan (
     dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =========================================================
--- 2. TABEL PELANGGAN
--- =========================================================
 
 CREATE TYPE sistem.gender AS ENUM
 ('laki-laki','perempuan');
@@ -34,9 +31,6 @@ CREATE TABLE sistem.pelanggan (
     ON DELETE CASCADE
 );
 
--- =========================================================
--- 3. TABEL HOTEL
--- =========================================================
 
 CREATE TABLE sistem.hotel (
     id_hotel SERIAL PRIMARY KEY,
@@ -47,9 +41,6 @@ CREATE TABLE sistem.hotel (
     deskripsi TEXT
 );
 
--- =========================================================
--- 4. TYPE & TABEL TIPE KAMAR
--- =========================================================
 
 CREATE TYPE sistem.jenis_kamar AS ENUM
 ('Standard','Deluxe','Suite','Family Room','Single Room');
@@ -57,14 +48,11 @@ CREATE TYPE sistem.jenis_kamar AS ENUM
 CREATE TABLE sistem.tipe_kamar (
     id_tipe SERIAL PRIMARY KEY,
     nama sistem.jenis_kamar NOT NULL,
-    harga DECIMAL(12,0) NOT NULL, -- Diperbaiki menjadi tanpa sen (Rupiah)
+    harga DECIMAL(12,0) NOT NULL, 
     kapasitas INT NOT NULL,
     deskripsi TEXT
 );
 
--- =========================================================
--- 5. TABEL KAMAR (Diperbaiki: Penghapusan kolom stok)
--- =========================================================
 
 CREATE TABLE sistem.kamar (
     id_kamar SERIAL PRIMARY KEY,
@@ -77,23 +65,17 @@ CREATE TABLE sistem.kamar (
     UNIQUE (id_hotel, nomor_kamar) 
 );
 
--- =========================================================
--- 6. TABEL PROMO
--- =========================================================
 
 CREATE TABLE sistem.promo (
     id_promo SERIAL PRIMARY KEY,
     kode_promo VARCHAR(20) UNIQUE NOT NULL,
     deskripsi TEXT,
-    nilai_diskon DECIMAL(5,2) NOT NULL, -- Persentase diskon
+    nilai_diskon DECIMAL(5,2) NOT NULL, 
     berlaku_dari DATE NOT NULL,
     berlaku_hingga DATE NOT NULL,
     dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =========================================================
--- 7. TYPE & TABEL RESERVASI
--- =========================================================
 
 CREATE TYPE sistem.status_pemesanan AS ENUM
 ('dikonfirmasi','check_in','check_out','dibatalkan');
@@ -116,9 +98,6 @@ CREATE TABLE sistem.reservasi (
     REFERENCES sistem.promo(id_promo)
 );
 
--- =========================================================
--- 8. TYPE & TABEL PEMBAYARAN
--- =========================================================
 
 CREATE TYPE sistem.cara_bayar AS ENUM
 ('transfer_bank','e_wallet');
@@ -132,9 +111,6 @@ CREATE TABLE sistem.pembayaran (
     REFERENCES sistem.reservasi(id_reservasi)
 );
 
--- =========================================================
--- 9. TABEL ULASAN (Diperbaiki: 3NF, menghapus id_hotel & id_pelanggan)
--- =========================================================
 
 CREATE TABLE sistem.ulasan (
     id_ulasan SERIAL PRIMARY KEY,
@@ -147,9 +123,6 @@ CREATE TABLE sistem.ulasan (
     REFERENCES sistem.reservasi(id_reservasi)
 );
 
--- =========================================================
--- 10. TYPE & TABEL LAYANAN SPA
--- =========================================================
 
 CREATE TYPE sistem.kategori_spa AS ENUM
 ('Massage','Facial','Body Treatment','Hydrotherapy',
@@ -165,7 +138,7 @@ CREATE TABLE sistem.layanan_spa (
     nama_layanan VARCHAR(100) NOT NULL,
     kategori sistem.kategori_spa NOT NULL,
     deskripsi TEXT,
-    harga DECIMAL(12,0) NOT NULL, -- Diperbaiki
+    harga DECIMAL(12,0) NOT NULL, 
     status sistem.status_layanan DEFAULT 'Tersedia',
     FOREIGN KEY (id_hotel)
     REFERENCES sistem.hotel(id_hotel)
@@ -180,7 +153,7 @@ CREATE TABLE sistem.pemesanan_spa (
     id_layanan_spa INT NOT NULL,
     tanggal_spa TIMESTAMP NOT NULL,
     jumlah_orang INT DEFAULT 1,
-    total_harga DECIMAL(12,0) NOT NULL, -- Diperbaiki
+    total_harga DECIMAL(12,0) NOT NULL,
     status sistem.status_pesanan DEFAULT 'Dijadwalkan',
     dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_reservasi)
@@ -189,9 +162,6 @@ CREATE TABLE sistem.pemesanan_spa (
     REFERENCES sistem.layanan_spa(id_layanan_spa)
 );
 
--- =========================================================
--- 11. GABUNGAN ENTITAS F&B
--- =========================================================
 
 CREATE TYPE sistem.jenis_fnb AS ENUM
 ('Makanan','Minuman');
@@ -201,7 +171,7 @@ CREATE TABLE sistem.menu_fnb (
     nama_item VARCHAR(100) NOT NULL,
     kategori sistem.jenis_fnb NOT NULL,
     deskripsi TEXT,
-    harga DECIMAL(12,0) NOT NULL, -- Diperbaiki
+    harga DECIMAL(12,0) NOT NULL, 
     tersedia BOOLEAN DEFAULT TRUE
 );
 
@@ -210,7 +180,7 @@ CREATE TABLE sistem.pemesanan_fnb (
     id_reservasi INT NOT NULL,
     id_menu INT NOT NULL,
     jumlah INT NOT NULL CHECK (jumlah > 0),
-    harga DECIMAL(12,0) NOT NULL, -- Harga saat dipesan
+    harga DECIMAL(12,0) NOT NULL, 
     total_harga DECIMAL(12,0),
     waktu_pesan TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status sistem.status_pesanan DEFAULT 'Diantar',
@@ -974,9 +944,6 @@ BEFORE INSERT ON sistem.pembayaran
 FOR EACH ROW EXECUTE FUNCTION sistem.auto_timestamp_pembayaran();
 
 
--- =========================================================
--- FUNCTION UPDATE STATUS (Harus dijalankan via Cron Job Backend/PG_CRON)
--- =========================================================
 
 CREATE OR REPLACE FUNCTION sistem.update_status_checkin()
 RETURNS VOID AS $$

@@ -272,16 +272,16 @@ public class Main {
 
         while (true) {
             System.out.print("Jenis Kelamin (L/P): ");
-            String input = sc.nextLine().trim().toUpperCase(); // Langsung ubah ke huruf besar agar mudah dicek
+            String input = sc.nextLine().trim().toUpperCase();
             
             if (input.equals("0")) return;
             
             if (input.equals("L")) {
-                jk = "laki-laki"; // Nilai sudah sesuai ENUM
-                break;            // Keluar dari loop setelah nilai diubah
+                jk = "laki-laki"; 
+                break;            
             } else if (input.equals("P")) {
-                jk = "perempuan"; // Nilai sudah sesuai ENUM
-                break;            // Keluar dari loop setelah nilai diubah
+                jk = "perempuan"; 
+                break;            
             }
             
             System.out.println("Input tidak valid! Masukkan 'L' atau 'P'.");
@@ -393,7 +393,7 @@ public class Main {
                         printHeader("Main > Cari Hotel > Detail Kamar");
                         System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
                         
-                        // Tampilkan deskripsi hotel dengan format yang bagus
+                        
                         if (hotel.getDeskripsi() != null && !hotel.getDeskripsi().isEmpty()) {
                             UIFormatter.printHotelDescription(hotel.getDeskripsi());
                         }
@@ -475,7 +475,7 @@ public class Main {
                 
                 List<Room> rooms = new ArrayList<>(hotel.getRooms());
                 
-                // Sorting menu
+                
                 System.out.println("\nOpsi Sorting: [1] Default  [2] Harga Termurah  [3] Harga Termahal");
                 System.out.print("Pilih sorting (atau tekan Enter untuk default): ");
                 String sortInput = sc.nextLine().trim();
@@ -509,7 +509,7 @@ public class Main {
 
                 Room kamar = rooms.get(pilihKamar - 1);
 
-                // ---------- Input Tanggal Check‑in ----------
+                
                 System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Tanggal check-in (yyyy-mm-dd) [B untuk kembali]: " + UIFormatter.RESET);
                 String dateInput = sc.nextLine().trim();
                 if (dateInput.equalsIgnoreCase("B")) break;
@@ -526,17 +526,15 @@ public class Main {
                     continue;
                 }
 
-                // --- LOGIKA FILTER WAKTU (JIKA HARI INI & SUDAH LEWAT JAM 2 SIANG) ---
+               
                 LocalTime sekarang = LocalTime.now();
                 if (checkIn.equals(LocalDate.now()) && sekarang.isAfter(LocalTime.of(14, 0))) {
                     System.out.println(UIFormatter.YELLOW + "Batas waktu check-in hari ini (pukul 14:00) sudah lewat." + UIFormatter.RESET);
                     System.out.println(UIFormatter.YELLOW + "Pemesanan otomatis dialihkan ke hari berikutnya (pukul 14:00)." + UIFormatter.RESET);
-                    checkIn = LocalDate.now().plusDays(1);   // pindah ke besok
+                    checkIn = LocalDate.now().plusDays(1);  
                     System.out.println(UIFormatter.GREEN + "✓ Tanggal check-in baru: " + checkIn + UIFormatter.RESET);
                 }
-                // --- AKHIR FILTER WAKTU ---
 
-                // ---------- Input Lama Menginap ----------
                 System.out.print(UIFormatter.BRIGHT_CYAN + "Lama menginap (malam) [B untuk kembali]: " + UIFormatter.RESET);
                 String malamInput = sc.nextLine().trim();
                 if (malamInput.equalsIgnoreCase("B")) break;
@@ -547,7 +545,6 @@ public class Main {
                     continue;
                 }
 
-                // ---------- Kode Promo ----------
                 double diskon = 0;
                 System.out.print(UIFormatter.BRIGHT_CYAN + "Punya kode promo? (kosongkan jika tidak): " + UIFormatter.RESET);
                 String kode = sc.nextLine().trim();
@@ -568,12 +565,11 @@ public class Main {
                     }
                 }
 
-                // ---------- Hitung Total ----------
+      
                 int hargaDasar = kamar.getPricePerNight() * malam;
                 int potongan = (int) (hargaDasar * diskon);
                 int total = hargaDasar - potongan;
 
-                // ---------- Tampilkan Review Pesanan ----------
                 System.out.println("\n" + UIFormatter.BLUE + "╔════════════════════════════════════════╗" + UIFormatter.RESET);
                 System.out.println(UIFormatter.BLUE + "║          REVIEW PESANAN                ║" + UIFormatter.RESET);
                 System.out.println(UIFormatter.BLUE + "╠════════════════════════════════════════╣" + UIFormatter.RESET);
@@ -585,7 +581,6 @@ public class Main {
                 System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.BRIGHT_GREEN + "TOTAL       : Rp " + UIFormatter.formatPrice(total) + UIFormatter.RESET);
                 System.out.println(UIFormatter.BLUE + "╚════════════════════════════════════════╝" + UIFormatter.RESET);
 
-                // ---------- Metode Pembayaran ----------
                 System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Metode Pembayaran (transfer_bank / e_wallet) [B = Batal]: " + UIFormatter.RESET);
                 String metode = sc.nextLine().toLowerCase().trim();
                 if (metode.equalsIgnoreCase("B")) break;
@@ -595,14 +590,13 @@ public class Main {
                     continue;
                 }
 
-                // ---------- Konfirmasi ----------
                 System.out.print("Konfirmasi pesanan? (Y/N): ");
                 if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
                     System.out.println("Pesanan dibatalkan.");
                     continue;
                 }
 
-                // ---------- Simpan Booking ----------
+           
                 Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
                         checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
                 int reservasiId = DatabaseHelper.createReservation(newBooking);
