@@ -6,7 +6,7 @@ import java.sql.SQLException;
 
 public class tesKoneksi {
     // Port standar PostgreSQL adalah 5432
-    private static final String URL = "jdbc:postgresql://localhost:5432/hotelApp";
+    private static final String URL = "jdbc:postgresql://localhost:5432/hotelSystem";
     private static final String USER = "postgres"; // Username bawaan postgres
     private static final String PASSWORD = "postgres"; 
 

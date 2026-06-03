@@ -1,4 +1,5 @@
 package hotel;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -74,22 +75,49 @@ public class Booking {
     // Memperbarui status booking berdasarkan tanggal hari ini
     public void refreshStatus() {
         LocalDate today = LocalDate.now();
-        if (status == Status.CONFIRMED || status == Status.CHECKED_IN) {
-            if (!today.isBefore(checkInDate)) {
-                if (status == Status.CONFIRMED)
-                    status = Status.CHECKED_IN;
-                if (today.isAfter(checkoutDate)) {
-                    status = Status.CHECKED_OUT;
-                }
-            }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime checkInDeadline = checkInDate.atTime(14, 0);
+        
+        // Aturan: Jika sudah jam 14:00 di hari check-in dan tamu tidak datang (belum check-in), 
+        // status diubah menjadi CHECKED_OUT (pesanan hangus, tidak ada refund)
+        if (status == Status.CONFIRMED && now.isAfter(checkInDeadline)) {
+            status = Status.CHECKED_OUT;
         }
+        // Aturan: Jika belum jam 14:00 di hari check-in, user bisa masuk menjadi CHECKED_IN
+        else if (status == Status.CONFIRMED && !today.isBefore(checkInDate) && now.isBefore(checkInDeadline)) {
+            status = Status.CHECKED_IN;
+        }
+        
+        // Catatan: Auto Check-Out berdasarkan checkoutDate dihapus dari sini
+        // Kita menggunakan isOperationalValid() sebagai gantinya.
+    }
+
+    // Aturan: Memastikan pesanan/layanan tidak bisa dilakukan 
+    // jika tanggal hari ini sudah melewati batas checkout yang tertera di aplikasi.
+    public boolean isOperationalValid() {
+        LocalDate today = LocalDate.now();
+        
+        // Jika status sudah selesai atau batal, operasi tidak valid
+        if (status == Status.CHECKED_OUT || status == Status.REFUNDED) {
+            return false;
+        }
+        
+        // Jika hari ini sudah melewati tanggal keluar kamar, kunci semua akses pesanan
+        if (today.isAfter(checkoutDate)) {
+            return false; 
+        }
+        
+        return true;
     }
 
     // Cek apakah booking bisa direfund
     public boolean isRefundable() {
         if (status != Status.CONFIRMED) return false;
+        
+        // Aturan: Refund maksimal 2 jam sebelum jam 14:00 hari check-in (jam 12:00)
         LocalDateTime checkInDateTime = checkInDate.atTime(14, 0);
         LocalDateTime deadline = checkInDateTime.minusHours(2);
+        
         return LocalDateTime.now().isBefore(deadline);
     }
 

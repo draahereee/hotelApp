@@ -24,6 +24,9 @@ public class Promo {
     public double getDiscountPercent() {return discountValue / 100.0;}
     public double getDiscountValue() { return discountValue; }
     public String getDescription()     { return deskripsi; }
+    public LocalDate getStartDate()    { return startDate; }
+    public LocalDate getValidUntil()   { return endDate; }
+    public LocalDate getEndDate()      { return endDate; }
 
     public boolean isValidForDate(LocalDate date) {
         return (date.isEqual(startDate) || date.isAfter(startDate)) &&

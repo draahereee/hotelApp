@@ -271,10 +271,19 @@ public class Main {
 
         while (true) {
             System.out.print("Jenis Kelamin (L/P): ");
-            jk = sc.nextLine().trim();
-            if (jk.equals("0")) return;
-            if (jk.equalsIgnoreCase("L") || jk.equalsIgnoreCase("P")) break;
-            System.out.println(" Masukkan 'L' atau 'P'.");
+            String input = sc.nextLine().trim().toUpperCase(); // Langsung ubah ke huruf besar agar mudah dicek
+            
+            if (input.equals("0")) return;
+            
+            if (input.equals("L")) {
+                jk = "laki-laki"; // Nilai sudah sesuai ENUM
+                break;            // Keluar dari loop setelah nilai diubah
+            } else if (input.equals("P")) {
+                jk = "perempuan"; // Nilai sudah sesuai ENUM
+                break;            // Keluar dari loop setelah nilai diubah
+            }
+            
+            System.out.println("Input tidak valid! Masukkan 'L' atau 'P'.");
         }
 
         User newUser = new User(0, u, e, p, n, alamat, nama, jk);
@@ -292,10 +301,17 @@ public class Main {
         System.out.print("Password: "); String p = sc.nextLine();
         loggedUser = DatabaseHelper.loginUser(u, p);
         if (loggedUser != null) {
-            System.out.println("Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!");
+            clearScreen();
+            System.out.println(UIFormatter.GREEN + "Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!" + UIFormatter.RESET);
+            System.out.println("\nTekan Enter untuk melanjutkan...");
+            sc.nextLine();
+            
+            clearScreen();
+            UIFormatter.printLoginRulesDialog();
+            System.out.print("\n" + UIFormatter.GREEN + "Tekan Enter untuk melanjutkan ke Menu Utama..." + UIFormatter.RESET);
             sc.nextLine();
         } else {
-            System.out.println("Login gagal. Periksa username dan password.");
+            System.out.println(UIFormatter.RED + "Login gagal. Periksa username dan password." + UIFormatter.RESET);
             sc.nextLine();
         }
     }
@@ -347,11 +363,14 @@ public class Main {
             }
 
             while (true) {
+                printHeader("Main > Cari Hotel");
                 System.out.println("\nHotel di " + kotaTerpilih + ":");
+                UIFormatter.printHotelTableHeader();
                 for (int j = 0; j < hotelDiKota.size(); j++) {
                     Hotel h = hotelDiKota.get(j);
-                    System.out.println((j + 1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
+                    UIFormatter.printHotelRow(j + 1, h);
                 }
+                UIFormatter.printHotelTableFooter();
 
                 System.out.print("\nPilih hotel (atau ketik M/B): ");
                 String inputHotel = sc.nextLine().trim().toUpperCase();
@@ -362,22 +381,31 @@ public class Main {
                 try {
                     int pilihHotel = Integer.parseInt(inputHotel);
                     if (pilihHotel < 1 || pilihHotel > hotelDiKota.size()) {
-                        System.out.println("Pilihan tidak valid.");
+                        System.out.println(UIFormatter.RED + "Pilihan tidak valid." + UIFormatter.RESET);
+                        System.out.print("Tekan Enter untuk melanjutkan...");
+                        sc.nextLine();
                         continue;
                     }
                     Hotel hotel = hotelDiKota.get(pilihHotel - 1);
 
                     while (true) {
-                        System.out.println("\nTipe Kamar di " + hotel.getName() + ":");
+                        printHeader("Main > Cari Hotel > Detail Kamar");
+                        System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
+                        
+                        // Tampilkan deskripsi hotel dengan format yang bagus
+                        if (hotel.getDeskripsi() != null && !hotel.getDeskripsi().isEmpty()) {
+                            UIFormatter.printHotelDescription(hotel.getDeskripsi());
+                        }
+                        System.out.println("\nTipe Kamar Tersedia:\n");
+                        
                         List<Room> rooms = hotel.getRooms();
                         for (int k = 0; k < rooms.size(); k++) {
                             Room r = rooms.get(k);
-                            System.out.println((k + 1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
-                                    "/malam | Stok: " + r.getStock() + " | " + r.getFacilities());
+                            UIFormatter.printRoomCard(k + 1, r, null);
                         }
 
-                        System.out.println("\n[Info: Untuk memesan, silakan ke menu Booking Hotel]");
-                        System.out.print("Tekan B untuk kembali ke daftar hotel, atau M ke Menu Utama: ");
+                        System.out.println(UIFormatter.BRIGHT_BLACK + "[Info: Untuk memesan, silakan ke menu 'Booking Hotel']" + UIFormatter.RESET);
+                        System.out.print("\nTekan B untuk kembali, atau M ke Menu Utama: ");
                         String inputKamar = sc.nextLine().trim().toUpperCase();
 
                         if (inputKamar.equals("M")) { currentState = AppState.MAIN; return; }
@@ -385,7 +413,9 @@ public class Main {
                     }
 
                 } catch (NumberFormatException e) {
-                    System.out.println("Input hotel harus berupa angka, M, atau B.");
+                    System.out.println(UIFormatter.RED + "Input hotel harus berupa angka, M, atau B." + UIFormatter.RESET);
+                    System.out.print("Tekan Enter untuk melanjutkan...");
+                    sc.nextLine();
                 }
             }
 
@@ -439,12 +469,27 @@ public class Main {
                 Hotel hotel = hotelDiKota.get(pilihHotel - 1);
 
                 while (true) {
-                    System.out.println("\nTipe Kamar di " + hotel.getName() + ":");
-                    List<Room> rooms = hotel.getRooms();
+                    printHeader("Main > Booking Hotel > Pilih Kamar");
+                    System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
+                    
+                    List<Room> rooms = new ArrayList<>(hotel.getRooms());
+                    
+                    // Sorting menu
+                    System.out.println("\nOpsi Sorting: [1] Default  [2] Harga Termurah  [3] Harga Termahal");
+                    System.out.print("Pilih sorting (atau tekan Enter untuk default): ");
+                    String sortInput = sc.nextLine().trim();
+                    
+                    if (sortInput.equals("2")) {
+                        rooms.sort((a, b) -> Integer.compare(a.getPricePerNight(), b.getPricePerNight()));
+                        System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termurah" + UIFormatter.RESET);
+                    } else if (sortInput.equals("3")) {
+                        rooms.sort((a, b) -> Integer.compare(b.getPricePerNight(), a.getPricePerNight()));
+                        System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termahal" + UIFormatter.RESET);
+                    }
+                    
+                    System.out.println("\nTipe Kamar Tersedia:\n");
                     for (int j = 0; j < rooms.size(); j++) {
-                        Room r = rooms.get(j);
-                        System.out.println((j + 1) + ". " + r.getType() + " - Rp " + r.getPricePerNight() +
-                                "/malam | Stok: " + r.getStock());
+                        UIFormatter.printRoomCard(j + 1, rooms.get(j), null);
                     }
 
                     System.out.print("\nPilih nomor kamar (atau ketik M/B): ");
@@ -455,18 +500,15 @@ public class Main {
 
                     int pilihKamar = Integer.parseInt(inputKamar);
                     if (pilihKamar < 1 || pilihKamar > rooms.size()) {
-                        System.out.println("Pilihan tidak valid.");
+                        System.out.println(UIFormatter.RED + "Pilihan tidak valid." + UIFormatter.RESET);
+                        System.out.print("Tekan Enter untuk melanjutkan...");
+                        sc.nextLine();
                         continue;
                     }
 
                     Room kamar = rooms.get(pilihKamar - 1);
 
-                    if (kamar.getStock() <= 0) {
-                        System.out.println("Maaf, stok kamar ini habis.");
-                        continue;
-                    }
-
-                    System.out.print("Tanggal check-in (yyyy-mm-dd) [B untuk kembali]: ");
+                    System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Tanggal check-in (yyyy-mm-dd) [B untuk kembali]: " + UIFormatter.RESET);
                     String dateInput = sc.nextLine().trim();
                     if (dateInput.equalsIgnoreCase("B")) break;
                     
@@ -474,26 +516,26 @@ public class Main {
                     try {
                         checkIn = LocalDate.parse(dateInput);
                         if (checkIn.isBefore(LocalDate.now())) {
-                            System.out.println("Tanggal tidak boleh di masa lalu.");
+                            System.out.println(UIFormatter.RED + "Tanggal tidak boleh di masa lalu." + UIFormatter.RESET);
                             continue;
                         }
                     } catch (DateTimeParseException e) {
-                        System.out.println("Format salah (yyyy-mm-dd).");
+                        System.out.println(UIFormatter.RED + "Format salah (yyyy-mm-dd)." + UIFormatter.RESET);
                         continue;
                     }
 
-                    System.out.print("Lama menginap (malam) [B untuk kembali]: ");
+                    System.out.print(UIFormatter.BRIGHT_CYAN + "Lama menginap (malam) [B untuk kembali]: " + UIFormatter.RESET);
                     String malamInput = sc.nextLine().trim();
                     if (malamInput.equalsIgnoreCase("B")) break;
                     
                     int malam = Integer.parseInt(malamInput);
                     if (malam < 1) {
-                        System.out.println("Minimal 1 malam.");
+                        System.out.println(UIFormatter.RED + "Minimal 1 malam." + UIFormatter.RESET);
                         continue;
                     }
 
                     double diskon = 0;
-                    System.out.print("Punya kode promo? (kosongkan jika tidak): ");
+                    System.out.print(UIFormatter.BRIGHT_CYAN + "Punya kode promo? (kosongkan jika tidak): " + UIFormatter.RESET);
                     String kode = sc.nextLine().trim();
                     Promo promoAktif = null;
                     
@@ -506,9 +548,9 @@ public class Main {
                             }
                         }
                         if (promoAktif == null) {
-                            System.out.println("Kode tidak valid atau tidak berlaku.");
+                            System.out.println(UIFormatter.RED + "Kode tidak valid atau tidak berlaku." + UIFormatter.RESET);
                         } else {
-                            System.out.println("Promo diterapkan: " + promoAktif.getCode());
+                            System.out.println(UIFormatter.GREEN + "✓ Promo diterapkan: " + promoAktif.getCode() + UIFormatter.RESET);
                         }
                     }
 
@@ -516,14 +558,18 @@ public class Main {
                     int potongan = (int) (hargaDasar * diskon);
                     int total = hargaDasar - potongan;
 
-                    System.out.println("\n--- REVIEW PESANAN ---");
-                    System.out.println("Hotel     : " + hotel.getName());
-                    System.out.println("Kamar     : " + kamar.getType());
-                    System.out.println("Check-in  : " + checkIn + " – Check-out: " + checkIn.plusDays(malam));
-                    if (potongan > 0) System.out.println("Diskon    : -Rp " + potongan);
-                    System.out.println("Total     : Rp " + total);
+                    System.out.println("\n" + UIFormatter.BLUE + "╔════════════════════════════════════════╗" + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BLUE + "║          REVIEW PESANAN                ║" + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BLUE + "╠════════════════════════════════════════╣" + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Hotel     : " + hotel.getName());
+                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Kamar     : " + kamar.getType());
+                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Periode   : " + checkIn + " → " + checkIn.plusDays(malam) + " (" + malam + " malam)");
+                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Harga Dasar : Rp " + UIFormatter.formatPrice(hargaDasar));
+                    if (potongan > 0) System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.RED + "Diskon      : -Rp " + UIFormatter.formatPrice(potongan) + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.BRIGHT_GREEN + "TOTAL       : Rp " + UIFormatter.formatPrice(total) + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BLUE + "╚════════════════════════════════════════╝" + UIFormatter.RESET);
 
-                    System.out.print("Metode Pembayaran (transfer_bank / e_wallet) [B = Batal]: ");
+                    System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Metode Pembayaran (transfer_bank / e_wallet) [B = Batal]: " + UIFormatter.RESET);
                     String metode = sc.nextLine().toLowerCase().trim();
                     if (metode.equalsIgnoreCase("B")) break;
                     
@@ -538,9 +584,6 @@ public class Main {
                         continue;
                     }
 
-                    kamar.setStock(kamar.getStock() - 1); 
-                    DatabaseHelper.updateStock(kamar.getIdKamar(), kamar.getStock());
-
                     Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
                             checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
                     int reservasiId = DatabaseHelper.createReservation(newBooking);
@@ -548,9 +591,7 @@ public class Main {
                     if (reservasiId > 0) {
                         System.out.println(">>> Booking berhasil! ID reservasi: " + reservasiId);
                     } else {
-                        System.out.println(">>> Gagal booking. Data dikembalikan.");
-                        kamar.setStock(kamar.getStock() + 1); 
-                        DatabaseHelper.updateStock(kamar.getIdKamar(), kamar.getStock()); 
+                        System.out.println(">>> Gagal booking.");
                     }
                     
                     System.out.print("\nTekan Enter untuk kembali ke Menu Utama...");
@@ -567,10 +608,15 @@ public class Main {
 
     static void tampilkanPromo() {
         printHeader("Main > Promo");
-        System.out.println("\n--- DAFTAR PROMO ---");
-        for (Promo p : promos) {
-            System.out.println(p);
-            System.out.println("   (Berlaku jika check-in sesuai syarat)");
+        
+        if (promos.isEmpty()) {
+            System.out.println("\nTidak ada promo tersedia saat ini.");
+        } else {
+            System.out.println("\n" + UIFormatter.BRIGHT_YELLOW + UIFormatter.BOLD + "DAFTAR PROMO AKTIF" + UIFormatter.RESET + "\n");
+            for (Promo p : promos) {
+                UIFormatter.printPromoCard(p);
+                System.out.println();
+            }
         }
         
         System.out.print("\nTekan Enter untuk kembali...");
@@ -755,17 +801,28 @@ public class Main {
             } else {
                 Booking b = bookings.get(idx - 1);
                 if (b.isRefundable()) {
-                    b.getRoom().increaseStock();
-                    DatabaseHelper.updateStock(b.getRoom().getIdKamar(), b.getRoom().getStock());
                     DatabaseHelper.updateReservationStatus(b.getIdReservasi(), "dibatalkan");
                     b.setStatus(Booking.Status.REFUNDED);
-                    System.out.println(">>> Refund berhasil diproses.");
+                    System.out.println(UIFormatter.GREEN + ">>> Refund berhasil diproses." + UIFormatter.RESET);
                 } else {
-                    System.out.println(">>> Maaf, pesanan ini tidak dapat di-refund.");
+                    String alasan = "";
+                    if (b.getStatus() == Booking.Status.CHECKED_IN) {
+                        alasan = "Anda sudah check-in. Tidak ada refund untuk booking yang sedang berjalan.";
+                    } else if (b.getStatus() == Booking.Status.CHECKED_OUT) {
+                        alasan = "Anda sudah check-out. Tidak ada refund untuk booking yang sudah selesai.";
+                    } else if (b.getStatus() == Booking.Status.REFUNDED) {
+                        alasan = "Pesanan ini sudah direfund sebelumnya.";
+                    } else if (LocalDateTime.now().isAfter(b.getCheckInDate().atTime(14, 0))) {
+                        alasan = "Sudah melewati jam 14:00 check-in. Tidak ada refund untuk keterlambatan check-in.";
+                    } else {
+                        alasan = "Pesanan ini tidak dapat di-refund.";
+                    }
+                    System.out.println(UIFormatter.RED + ">>> Maaf, pesanan ini tidak dapat di-refund." + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BRIGHT_BLACK + "   Alasan: " + alasan + UIFormatter.RESET);
                 }
             }
         } catch (NumberFormatException e) {
-            System.out.println("Input tidak valid.");
+            System.out.println(UIFormatter.RED + "Input tidak valid." + UIFormatter.RESET);
         }
 
         System.out.print("\nTekan Enter untuk kembali...");

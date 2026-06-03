@@ -42,7 +42,7 @@ public class DatabaseHelper {
 
     public static boolean registerUser(User user) {
         String sqlAkun = "INSERT INTO sistem.akun_pelanggan (username, email, password) VALUES (?, ?, ?) RETURNING id_akun";
-        String sqlPelanggan = "INSERT INTO sistem.pelanggan (id_akun, nama_pelanggan, no_hp, alamat, jenis_kelamin) VALUES (?, ?, ?, ?, ?)";
+        String sqlPelanggan = "INSERT INTO sistem.pelanggan (id_akun, nama_pelanggan, no_hp, alamat, jenis_kelamin) VALUES (?, ?, ?, ?, ?::sistem.gender)";
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
             int idAkun;
@@ -93,7 +93,7 @@ public class DatabaseHelper {
     public static List<Hotel> loadAllHotels() {
         List<Hotel> hotelList = new ArrayList<>();
         String sql = "SELECT h.id_hotel, h.nama_hotel, h.lokasi_hotel, h.rating, h.deskripsi, " +
-                     "k.id_kamar, k.nomor_kamar, t.nama AS tipe, t.harga, t.deskripsi AS fasilitas, k.stok " +
+                     "k.id_kamar, k.nomor_kamar, t.nama AS tipe, t.harga, t.deskripsi AS fasilitas " +
                      "FROM sistem.hotel h " +
                      "JOIN sistem.kamar k ON h.id_hotel = k.id_hotel " +
                      "JOIN sistem.tipe_kamar t ON k.id_tipe = t.id_tipe " +
@@ -120,12 +120,11 @@ public class DatabaseHelper {
                     rooms = new ArrayList<>();
                 }
                 int idKamar = rs.getInt("id_kamar");
-                int nomor = rs.getInt("nomor_kamar");
+                String nomor = rs.getString("nomor_kamar");
                 String tipe = rs.getString("tipe");
                 int harga = rs.getInt("harga");
                 String fasilitas = rs.getString("fasilitas");
-                int stok = rs.getInt("stok");
-                rooms.add(new Room(idKamar, nomor, tipe, harga, fasilitas, stok));
+                rooms.add(new Room(idKamar, nomor, tipe, harga, fasilitas));
             }
             if (currentHotel != null) {
                 hotelList.add(new Hotel(currentHotel.getIdHotel(), currentHotel.getName(),
@@ -138,17 +137,8 @@ public class DatabaseHelper {
         return hotelList;
     }
 
-    public static void updateStock(int idKamar, int newStock) {
-        String sql = "UPDATE sistem.kamar SET stok = ? WHERE id_kamar = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, newStock);
-            ps.setInt(2, idKamar);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+    // updateStock dihapus - tidak ada kolom stok di tabel kamar
+    // Sistem database menggunakan constraint tanggal untuk mencegah bentrok booking
 
     // ======================= PROMO =======================
     public static List<Promo> loadAllPromos() {
@@ -188,25 +178,11 @@ public class DatabaseHelper {
                               "VALUES (?, ?, ?, ?, ?, ?, ?::sistem.status_pemesanan) RETURNING id_reservasi";
         String sqlPembayaran = "INSERT INTO sistem.pembayaran (id_reservasi, metode_pembayaran) VALUES (?, ?::sistem.cara_bayar)";
         
-        // Perbaikan Konsep 1: Mengurangi stok secara aman di level database untuk mencegah Overbooking
-        String sqlKurangiStok = "UPDATE sistem.kamar SET stok = stok - 1 WHERE id_kamar = ? AND stok > 0";
-        
         int reservasiId = 0;
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
 
-            // 1. Amankan Stok Terlebih Dahulu
-            try (PreparedStatement psStok = conn.prepareStatement(sqlKurangiStok)) {
-                psStok.setInt(1, booking.getRoom().getIdKamar());
-                int affectedRows = psStok.executeUpdate();
-                if (affectedRows == 0) {
-                    System.out.println("Gagal booking: Stok kamar sudah habis!");
-                    conn.rollback(); // Batalkan transaksi
-                    return 0;
-                }
-            }
-
-            // 2. Insert reservasi
+            // 1. Insert reservasi (trigger database akan validasi bentrok tanggal)
             try (PreparedStatement ps = conn.prepareStatement(sqlReservasi)) {
                 int idPelanggan = getPelangganIdByAkun(booking.getUser().getIdAkun(), conn);
                 ps.setInt(1, idPelanggan);
@@ -228,7 +204,7 @@ public class DatabaseHelper {
                 }
             }
             
-            // 3. Insert pembayaran
+            // 2. Insert pembayaran
             try (PreparedStatement psPemb = conn.prepareStatement(sqlPembayaran)) {
                 psPemb.setInt(1, reservasiId);
                 psPemb.setString(2, booking.getPaymentMethod());
@@ -271,7 +247,7 @@ public class DatabaseHelper {
         List<Booking> bookings = new ArrayList<>();
         String sql = "SELECT r.id_reservasi, r.masuk_kamar, r.keluar_kamar, r.harga_total, r.status_reservasi, " +
                      "h.id_hotel, h.nama_hotel, h.lokasi_hotel, h.rating, h.deskripsi, " +
-                     "k.id_kamar, k.nomor_kamar, t.nama AS tipe, t.harga, t.deskripsi AS fasilitas, k.stok, " +
+                     "k.id_kamar, k.nomor_kamar, t.nama AS tipe, t.harga, t.deskripsi AS fasilitas, " +
                      "p.metode_pembayaran, " +
                      "pr.id_promo, pr.kode_promo, pr.deskripsi AS promo_desc, pr.nilai_diskon, pr.berlaku_dari, pr.berlaku_hingga " +
                      "FROM sistem.reservasi r " +
@@ -303,11 +279,10 @@ public class DatabaseHelper {
                 
                 Room room = new Room(
                     rs.getInt("id_kamar"),
-                    rs.getInt("nomor_kamar"),
+                    rs.getString("nomor_kamar"),
                     rs.getString("tipe"),
                     rs.getInt("harga"),
-                    rs.getString("fasilitas"),
-                    rs.getInt("stok")
+                    rs.getString("fasilitas")
                 );
                 
                 Promo promo = null;
@@ -382,13 +357,13 @@ public class DatabaseHelper {
 
     public static List<ServiceItem> loadMakananMenu() {
         List<ServiceItem> list = new ArrayList<>();
-        String sql = "SELECT id_makanan, nama_makanan, harga FROM sistem.menu_makanan WHERE tersedia = TRUE";
+        String sql = "SELECT id_menu, nama_item, harga FROM sistem.menu_fnb WHERE kategori = 'Makanan' AND tersedia = TRUE";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                int id = rs.getInt("id_makanan");
-                String name = rs.getString("nama_makanan");
+                int id = rs.getInt("id_menu");
+                String name = rs.getString("nama_item");
                 int price = rs.getInt("harga");
                 list.add(new ServiceItem(id, name, price));
             }
@@ -398,13 +373,13 @@ public class DatabaseHelper {
 
     public static List<ServiceItem> loadMinumanMenu() {
         List<ServiceItem> list = new ArrayList<>();
-        String sql = "SELECT id_minuman, nama_minuman, harga FROM sistem.menu_minuman WHERE tersedia = TRUE";
+        String sql = "SELECT id_menu, nama_item, harga FROM sistem.menu_fnb WHERE kategori = 'Minuman' AND tersedia = TRUE";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                int id = rs.getInt("id_minuman");
-                String name = rs.getString("nama_minuman");
+                int id = rs.getInt("id_menu");
+                String name = rs.getString("nama_item");
                 int price = rs.getInt("harga");
                 list.add(new ServiceItem(id, name, price));
             }
@@ -429,8 +404,8 @@ public class DatabaseHelper {
     }
 
     public static boolean orderMakanan(int reservasiId, int makananId, int jumlah, int hargaSatuan) {
-        String sql = "INSERT INTO sistem.pemesanan_makanan " +
-                     "(id_reservasi, id_makanan, jumlah, harga, total_harga) " +
+        String sql = "INSERT INTO sistem.pemesanan_fnb " +
+                     "(id_reservasi, id_menu, jumlah, harga, total_harga) " +
                      "VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -445,8 +420,8 @@ public class DatabaseHelper {
     }
 
     public static boolean orderMinuman(int reservasiId, int minumanId, int jumlah, int hargaSatuan) {
-        String sql = "INSERT INTO sistem.pemesanan_minuman " +
-                     "(id_reservasi, id_minuman, jumlah, harga, total_harga) " +
+        String sql = "INSERT INTO sistem.pemesanan_fnb " +
+                     "(id_reservasi, id_menu, jumlah, harga, total_harga) " +
                      "VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -489,49 +464,27 @@ public class DatabaseHelper {
             }
         } catch (SQLException e) { e.printStackTrace(); }
 
-        // Makanan
-        String sqlMakan = "SELECT pm.id_pesanan_makanan, pm.id_reservasi, mm.nama_makanan, mm.harga, " +
-                          "pm.jumlah, pm.total_harga, pm.status::text AS status, pm.waktu_pesan " +
-                          "FROM sistem.pemesanan_makanan pm JOIN sistem.menu_makanan mm ON pm.id_makanan = mm.id_makanan " +
-                          "WHERE pm.id_reservasi = ?";
+        // Makanan dan Minuman (dari unified table pemesanan_fnb dan menu_fnb)
+        String sqlMakanMinum = "SELECT pf.id_pesanan_fnb, pf.id_reservasi, mf.nama_item, mf.harga, mf.kategori, " +
+                               "pf.jumlah, pf.total_harga, pf.status::text AS status, pf.waktu_pesan " +
+                               "FROM sistem.pemesanan_fnb pf JOIN sistem.menu_fnb mf ON pf.id_menu = mf.id_menu " +
+                               "WHERE pf.id_reservasi = ?";
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sqlMakan)) {
+             PreparedStatement ps = conn.prepareStatement(sqlMakanMinum)) {
             ps.setInt(1, reservasiId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 ServiceOrder.OrderStatus status = statusFromString(rs.getString("status"));
                 Timestamp ts = rs.getTimestamp("waktu_pesan");
+                String kategori = rs.getString("kategori");
+                ServiceOrder.ServiceType serviceType = kategori.equals("Makanan") ? 
+                    ServiceOrder.ServiceType.MAKANAN : ServiceOrder.ServiceType.MINUMAN;
+                
                 list.add(new ServiceOrder(
-                    rs.getInt("id_pesanan_makanan"),
+                    rs.getInt("id_pesanan_fnb"),
                     rs.getInt("id_reservasi"),
-                    ServiceOrder.ServiceType.MAKANAN,
-                    rs.getString("nama_makanan"),
-                    rs.getInt("harga"),
-                    rs.getInt("jumlah"),
-                    rs.getInt("total_harga"),
-                    status,
-                    ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
-                ));
-            }
-        } catch (SQLException e) { e.printStackTrace(); }
-
-        // Minuman
-        String sqlMinum = "SELECT pmi.id_pesanan_minuman, pmi.id_reservasi, dm.nama_minuman, dm.harga, " +
-                          "pmi.jumlah, pmi.total_harga, pmi.status::text AS status, pmi.waktu_pesan " +
-                          "FROM sistem.pemesanan_minuman pmi JOIN sistem.menu_minuman dm ON pmi.id_minuman = dm.id_minuman " +
-                          "WHERE pmi.id_reservasi = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sqlMinum)) {
-            ps.setInt(1, reservasiId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                ServiceOrder.OrderStatus status = statusFromString(rs.getString("status"));
-                Timestamp ts = rs.getTimestamp("waktu_pesan");
-                list.add(new ServiceOrder(
-                    rs.getInt("id_pesanan_minuman"),
-                    rs.getInt("id_reservasi"),
-                    ServiceOrder.ServiceType.MINUMAN,
-                    rs.getString("nama_minuman"),
+                    serviceType,
+                    rs.getString("nama_item"),
                     rs.getInt("harga"),
                     rs.getInt("jumlah"),
                     rs.getInt("total_harga"),
