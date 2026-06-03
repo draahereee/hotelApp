@@ -1,4 +1,8 @@
-package hotel;
+package hotel.ui;
+
+import hotel.model.Hotel;
+import hotel.model.Promo;
+import hotel.model.Room;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;

@@ -1,4 +1,4 @@
-package hotel;
+package hotel.model;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -6,7 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Booking {
+public class Booking implements Payable {
     public enum Status { CONFIRMED, CHECKED_IN, CHECKED_OUT, REFUNDED }
 
     private int idReservasi;
@@ -74,17 +74,18 @@ public class Booking {
     public void refreshStatus() {
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime checkInDeadline = checkInDate.atTime(14, 0);
-        
-   
-        if (status == Status.CONFIRMED && now.isAfter(checkInDeadline)) {
-            status = Status.CHECKED_OUT;
+        LocalDateTime checkInTime = checkInDate.atTime(14, 0);
+        LocalDateTime checkoutTime = checkoutDate.atTime(12, 0);
+
+        if (status == Status.REFUNDED) {
+            return;
         }
-       
-        else if (status == Status.CONFIRMED && !today.isBefore(checkInDate) && now.isBefore(checkInDeadline)) {
+
+        if (!now.isBefore(checkoutTime)) {
+            status = Status.CHECKED_OUT;
+        } else if (!today.isBefore(checkInDate) && !now.isBefore(checkInTime)) {
             status = Status.CHECKED_IN;
         }
-        
     }
 
 
@@ -115,6 +116,15 @@ public class Booking {
     }
 
     public void setStatus(Status s) { this.status = s; }
+
+    @Override
+    public int calculateTotal() {
+        int serviceTotal = 0;
+        for (ServiceOrder so : servicesOrdered) {
+            serviceTotal += so.calculateTotal();
+        }
+        return totalPrice + serviceTotal;
+    }
 
 
     public String info() {

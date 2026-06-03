@@ -1,4 +1,4 @@
-package hotel;
+package hotel.model;
 import java.time.LocalDate;
 
 public class Promo {

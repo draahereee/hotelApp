@@ -1,7 +1,10 @@
-package hotel;
+package hotel.model;
 import java.time.LocalDateTime;
 
-public class ServiceOrder {
+public class ServiceOrder implements Payable {
+    private static final int MINUTES_UNTIL_DELIVERED = 1;
+    private static final int MINUTES_UNTIL_COMPLETED = 5;
+
     public enum OrderStatus {
         DIPROSES,DIANTAR,SELESAI,DIBATALKAN
     }
@@ -41,12 +44,17 @@ public class ServiceOrder {
 
     public void refreshStatus() {
         LocalDateTime now = LocalDateTime.now();
-        if (status == OrderStatus.DIPROSES && waktuPesan.plusMinutes(1).isBefore(now)) {
+        if (status == OrderStatus.DIPROSES && waktuPesan.plusMinutes(MINUTES_UNTIL_DELIVERED).isBefore(now)) {
             status = OrderStatus.DIANTAR;
         }
-        if (status == OrderStatus.DIANTAR && waktuPesan.plusMinutes(5).isBefore(now)) {
+        if (status == OrderStatus.DIANTAR && waktuPesan.plusMinutes(MINUTES_UNTIL_COMPLETED).isBefore(now)) {
             status = OrderStatus.SELESAI;
         }
+    }
+
+    @Override
+    public int calculateTotal() {
+        return totalHarga;
     }
 
     @Override

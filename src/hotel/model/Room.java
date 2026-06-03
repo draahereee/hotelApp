@@ -1,4 +1,4 @@
-package hotel;
+package hotel.model;
 
 public class Room {
     private int idKamar;          // primary key dari tabel kamar

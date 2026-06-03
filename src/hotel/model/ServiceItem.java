@@ -1,4 +1,4 @@
-package hotel;
+package hotel.model;
 
 public class ServiceItem {
     private int idLayanan;

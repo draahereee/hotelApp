@@ -1,5 +1,9 @@
 package hotel;
 
+import hotel.model.*;
+import hotel.service.*;
+import hotel.ui.UIFormatter;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -14,6 +18,10 @@ public class Main {
     static List<Booking> bookings = new ArrayList<>();
     static User loggedUser = null;
     static Scanner sc = new Scanner(System.in);
+    static AuthService authService = new AuthService();
+    static HotelCatalogService hotelCatalogService = new HotelCatalogService();
+    static BookingService bookingService = new BookingService();
+    static AdditionalServiceService additionalServiceService = new AdditionalServiceService();
 
 
     enum AppState {
@@ -24,8 +32,8 @@ public class Main {
     static AppState currentState = AppState.MAIN;
 
     public static void main(String[] args) {
-        hotels = DatabaseHelper.loadAllHotels();
-        promos = DatabaseHelper.loadAllPromos();
+        hotels = hotelCatalogService.loadHotels();
+        promos = hotelCatalogService.loadPromos();
 
         while (true) {
             
@@ -117,22 +125,7 @@ public class Main {
     }
 
     static void refreshDatabase() {
-        bookings = DatabaseHelper.loadBookingsForUser(loggedUser.getIdAkun());
-        for (Booking b : bookings) {
-            b.refreshStatus();
-            String newStatus = b.getStatus().name()
-                    .replace("CONFIRMED", "dikonfirmasi")
-                    .replace("CHECKED_IN", "check_in")
-                    .replace("CHECKED_OUT", "check_out")
-                    .replace("REFUNDED", "dibatalkan");
-            DatabaseHelper.updateReservationStatus(b.getIdReservasi(), newStatus);
-        }
-        for (Booking b : bookings) {
-            List<ServiceOrder> serv = DatabaseHelper.loadServiceOrdersForReservation(b.getIdReservasi());
-            for (ServiceOrder so : serv) so.refreshStatus();
-            b.getServices().clear();
-            b.getServices().addAll(serv);
-        }
+        bookings = bookingService.loadAndRefreshBookingsForUser(loggedUser.getIdAkun());
     }
 
     static void renderMainMenu() {
@@ -288,7 +281,7 @@ public class Main {
         }
 
         User newUser = new User(0, u, e, p, n, alamat, nama, jk);
-        if (DatabaseHelper.registerUser(newUser)) {
+        if (authService.register(newUser)) {
             System.out.println("\n Registrasi berhasil! Silakan login.");
             sc.nextLine();
         } else {
@@ -300,7 +293,7 @@ public class Main {
     static void login() {
         System.out.print("Username: "); String u = sc.nextLine();
         System.out.print("Password: "); String p = sc.nextLine();
-        loggedUser = DatabaseHelper.loginUser(u, p);
+        loggedUser = authService.login(u, p);
         if (loggedUser != null) {
             clearScreen();
             System.out.println(UIFormatter.GREEN + "Login berhasil! Selamat datang, " + loggedUser.getUsername() + "!" + UIFormatter.RESET);
@@ -325,9 +318,7 @@ public class Main {
 
     static void cariHotel() {
         printHeader("Main > Cari Hotel");
-        Set<String> cities = hotels.stream()
-                .map(Hotel::getLocation)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> cities = hotelCatalogService.getAvailableCities(hotels);
 
         System.out.println("Pilih Kota Tujuan:");
         int i = 1;
@@ -352,9 +343,7 @@ public class Main {
             }
 
             String kotaTerpilih = new ArrayList<>(cities).get(pilihKota - 1);
-            List<Hotel> hotelDiKota = hotels.stream()
-                    .filter(h -> h.getLocation().equalsIgnoreCase(kotaTerpilih))
-                    .collect(Collectors.toList());
+            List<Hotel> hotelDiKota = hotelCatalogService.findHotelsByCity(hotels, kotaTerpilih);
 
             if (hotelDiKota.isEmpty()) {
                 System.out.println("Tidak ada hotel di " + kotaTerpilih);
@@ -436,9 +425,7 @@ public class Main {
     if (inputKota.equalsIgnoreCase("M")) { currentState = AppState.MAIN; return; }
     if (inputKota.equalsIgnoreCase("B")) { kembali(); return; }
 
-    List<Hotel> hotelDiKota = hotels.stream()
-            .filter(h -> h.getLocation().equalsIgnoreCase(inputKota))
-            .collect(Collectors.toList());
+    List<Hotel> hotelDiKota = hotelCatalogService.findHotelsByCity(hotels, inputKota);
 
     if (hotelDiKota.isEmpty()) {
         System.out.println("Tidak ada hotel di " + inputKota + ".");
@@ -473,18 +460,17 @@ public class Main {
                 printHeader("Main > Booking Hotel > Pilih Kamar");
                 System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
                 
-                List<Room> rooms = new ArrayList<>(hotel.getRooms());
+                List<Room> rooms;
                 
                 
                 System.out.println("\nOpsi Sorting: [1] Default  [2] Harga Termurah  [3] Harga Termahal");
                 System.out.print("Pilih sorting (atau tekan Enter untuk default): ");
                 String sortInput = sc.nextLine().trim();
                 
+                rooms = hotelCatalogService.sortRooms(hotel.getRooms(), sortInput);
                 if (sortInput.equals("2")) {
-                    rooms.sort((a, b) -> Integer.compare(a.getPricePerNight(), b.getPricePerNight()));
                     System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termurah" + UIFormatter.RESET);
                 } else if (sortInput.equals("3")) {
-                    rooms.sort((a, b) -> Integer.compare(b.getPricePerNight(), a.getPricePerNight()));
                     System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termahal" + UIFormatter.RESET);
                 }
                 
@@ -544,6 +530,15 @@ public class Main {
                     System.out.println(UIFormatter.RED + "Minimal 1 malam." + UIFormatter.RESET);
                     continue;
                 }
+                LocalDate checkout = checkIn.plusDays(malam);
+
+                if (!bookingService.isRoomAvailable(kamar, checkIn, checkout)) {
+                    System.out.println(UIFormatter.RED + "Kamar ini sudah dipesan pada periode tersebut." + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BRIGHT_BLACK + "Silakan pilih kamar atau tanggal lain." + UIFormatter.RESET);
+                    System.out.print("Tekan Enter untuk melanjutkan...");
+                    sc.nextLine();
+                    continue;
+                }
 
                 double diskon = 0;
                 System.out.print(UIFormatter.BRIGHT_CYAN + "Punya kode promo? (kosongkan jika tidak): " + UIFormatter.RESET);
@@ -551,16 +546,11 @@ public class Main {
                 Promo promoAktif = null;
                 
                 if (!kode.isEmpty()) {
-                    for (Promo p : promos) {
-                        if (p.getCode().equalsIgnoreCase(kode) && p.isValidForDate(checkIn)) {
-                            promoAktif = p;
-                            diskon = p.getDiscountPercent();
-                            break;
-                        }
-                    }
+                    promoAktif = hotelCatalogService.findValidPromo(promos, kode, checkIn);
                     if (promoAktif == null) {
                         System.out.println(UIFormatter.RED + "Kode tidak valid atau tidak berlaku." + UIFormatter.RESET);
                     } else {
+                        diskon = promoAktif.getDiscountPercent();
                         System.out.println(UIFormatter.GREEN + "✓ Promo diterapkan: " + promoAktif.getCode() + UIFormatter.RESET);
                     }
                 }
@@ -575,7 +565,7 @@ public class Main {
                 System.out.println(UIFormatter.BLUE + "╠════════════════════════════════════════╣" + UIFormatter.RESET);
                 System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Hotel     : " + hotel.getName());
                 System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Kamar     : " + kamar.getType());
-                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Periode   : " + checkIn + " → " + checkIn.plusDays(malam) + " (" + malam + " malam)");
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Periode   : " + checkIn + " → " + checkout + " (" + malam + " malam)");
                 System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Harga Dasar : Rp " + UIFormatter.formatPrice(hargaDasar));
                 if (potongan > 0) System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.RED + "Diskon      : -Rp " + UIFormatter.formatPrice(potongan) + UIFormatter.RESET);
                 System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.BRIGHT_GREEN + "TOTAL       : Rp " + UIFormatter.formatPrice(total) + UIFormatter.RESET);
@@ -598,8 +588,8 @@ public class Main {
 
            
                 Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
-                        checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
-                int reservasiId = DatabaseHelper.createReservation(newBooking);
+                        checkout, total, metode, Booking.Status.CONFIRMED, promoAktif);
+                int reservasiId = bookingService.createReservation(newBooking);
 
                 if (reservasiId > 0) {
                     System.out.println(">>> Booking berhasil! ID reservasi: " + reservasiId);
@@ -686,18 +676,8 @@ public class Main {
                 return;
             }
 
-            List<ServiceItem> menu = null;
-            String jenis = "";
-            if (kat == 1) {
-                menu = DatabaseHelper.loadSpaMenu(b.getHotel().getIdHotel());
-                jenis = "Spa";
-            } else if (kat == 2) {
-                menu = DatabaseHelper.loadMakananMenu();
-                jenis = "Makanan";
-            } else if (kat == 3) {
-                menu = DatabaseHelper.loadMinumanMenu();
-                jenis = "Minuman";
-            }
+            List<ServiceItem> menu = additionalServiceService.loadMenu(kat, b.getHotel().getIdHotel());
+            String jenis = additionalServiceService.getCategoryName(kat);
 
             if (menu == null || menu.isEmpty()) {
                 System.out.println("Maaf, tidak ada " + jenis + " tersedia.");
@@ -739,19 +719,12 @@ public class Main {
                 return;
             }
 
-            boolean sukses = false;
-            if (kat == 1) {
-                sukses = DatabaseHelper.orderSpa(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
-            } else if (kat == 2) {
-                sukses = DatabaseHelper.orderMakanan(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
-            } else if (kat == 3) {
-                sukses = DatabaseHelper.orderMinuman(b.getIdReservasi(), terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
-            }
+            boolean sukses = additionalServiceService.order(kat, b.getIdReservasi(),
+                    terpilih.getIdLayanan(), jumlah, terpilih.getPrice());
 
             if (sukses) {
                 ServiceOrder so = new ServiceOrder(0, b.getIdReservasi(),
-                        kat == 1 ? ServiceOrder.ServiceType.SPA :
-                        kat == 2 ? ServiceOrder.ServiceType.MAKANAN : ServiceOrder.ServiceType.MINUMAN,
+                        additionalServiceService.getServiceType(kat),
                         terpilih.getName(), terpilih.getPrice(), jumlah, total,
                         ServiceOrder.OrderStatus.DIPROSES, LocalDateTime.now());
                 b.addService(so);
@@ -784,7 +757,7 @@ public class Main {
             for (int i = 0; i < bookings.size(); i++) {
                 Booking b = bookings.get(i);
                 System.out.printf(mainRow, (i + 1), b.getHotel().getName(), b.getRoom().getNomorKamar(), 
-                                b.getStatus(), "Rp " + b.getTotalPrice(),
+                                b.getStatus(), "Rp " + UIFormatter.formatPrice(b.calculateTotal()),
                                 b.getCheckInDate() + " - " + b.getCheckoutDate());
                 
                 if (!b.getServices().isEmpty()) {
@@ -813,25 +786,11 @@ public class Main {
                 System.out.println("Nomor urut tidak valid.");
             } else {
                 Booking b = bookings.get(idx - 1);
-                if (b.isRefundable()) {
-                    DatabaseHelper.updateReservationStatus(b.getIdReservasi(), "dibatalkan");
-                    b.setStatus(Booking.Status.REFUNDED);
+                if (bookingService.refund(b)) {
                     System.out.println(UIFormatter.GREEN + ">>> Refund berhasil diproses." + UIFormatter.RESET);
                 } else {
-                    String alasan = "";
-                    if (b.getStatus() == Booking.Status.CHECKED_IN) {
-                        alasan = "Anda sudah check-in. Tidak ada refund untuk booking yang sedang berjalan.";
-                    } else if (b.getStatus() == Booking.Status.CHECKED_OUT) {
-                        alasan = "Anda sudah check-out. Tidak ada refund untuk booking yang sudah selesai.";
-                    } else if (b.getStatus() == Booking.Status.REFUNDED) {
-                        alasan = "Pesanan ini sudah direfund sebelumnya.";
-                    } else if (LocalDateTime.now().isAfter(b.getCheckInDate().atTime(14, 0))) {
-                        alasan = "Sudah melewati jam 14:00 check-in. Tidak ada refund untuk keterlambatan check-in.";
-                    } else {
-                        alasan = "Pesanan ini tidak dapat di-refund.";
-                    }
                     System.out.println(UIFormatter.RED + ">>> Maaf, pesanan ini tidak dapat di-refund." + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BRIGHT_BLACK + "   Alasan: " + alasan + UIFormatter.RESET);
+                    System.out.println(UIFormatter.BRIGHT_BLACK + "   Alasan: " + bookingService.getRefundRejectionReason(b) + UIFormatter.RESET);
                 }
             }
         } catch (NumberFormatException e) {
@@ -863,7 +822,7 @@ public class Main {
         String jk = sc.nextLine().trim();
         if (!jk.isEmpty()) loggedUser.setJenisKelamin(jk);
 
-        if (DatabaseHelper.updateProfile(loggedUser)) {
+        if (authService.updateProfile(loggedUser)) {
             System.out.println(">>> Profil diperbarui.");
         } else {
             System.out.println(">>> Gagal memperbarui profil.");

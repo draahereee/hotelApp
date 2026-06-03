@@ -1,4 +1,6 @@
-package hotel;
+package hotel.database;
+
+import hotel.model.*;
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -74,7 +76,7 @@ public class DatabaseHelper {
     }
 
     public static boolean updateProfile(User user) {
-        String sql = "UPDATE sistem.pelanggan SET nama_pelanggan = ?, no_hp = ?, alamat = ?, jenis_kelamin = ? WHERE id_akun = ?";
+        String sql = "UPDATE sistem.pelanggan SET nama_pelanggan = ?, no_hp = ?, alamat = ?, jenis_kelamin = ?::sistem.gender WHERE id_akun = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getNamaString());
@@ -223,6 +225,27 @@ public class DatabaseHelper {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    public static boolean isRoomAvailable(int idKamar, LocalDate checkIn, LocalDate checkout) {
+        String sql = "SELECT COUNT(*) AS total FROM sistem.reservasi " +
+                     "WHERE id_kamar = ? " +
+                     "AND status_reservasi NOT IN ('dibatalkan', 'check_out') " +
+                     "AND masuk_kamar < ? " +
+                     "AND keluar_kamar > ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, idKamar);
+            ps.setDate(2, Date.valueOf(checkout));
+            ps.setDate(3, Date.valueOf(checkIn));
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("total") == 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
 

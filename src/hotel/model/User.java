@@ -1,4 +1,4 @@
-package hotel;
+package hotel.model;
 
 public class User {
     private int idAkun;
