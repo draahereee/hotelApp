@@ -2,6 +2,7 @@ package hotel;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -427,184 +428,202 @@ public class Main {
     }
 
     static void bookingHotel() {
-        printHeader("Main > Booking Hotel");
+    printHeader("Main > Booking Hotel");
 
-        System.out.print("Masukkan kota tujuan (atau ketik M/B): ");
-        String inputKota = sc.nextLine().trim();
-        
-        if (inputKota.equalsIgnoreCase("M")) { currentState = AppState.MAIN; return; }
-        if (inputKota.equalsIgnoreCase("B")) { kembali(); return; }
+    System.out.print("Masukkan kota tujuan (atau ketik M/B): ");
+    String inputKota = sc.nextLine().trim();
+    
+    if (inputKota.equalsIgnoreCase("M")) { currentState = AppState.MAIN; return; }
+    if (inputKota.equalsIgnoreCase("B")) { kembali(); return; }
 
-        List<Hotel> hotelDiKota = hotels.stream()
-                .filter(h -> h.getLocation().equalsIgnoreCase(inputKota))
-                .collect(Collectors.toList());
+    List<Hotel> hotelDiKota = hotels.stream()
+            .filter(h -> h.getLocation().equalsIgnoreCase(inputKota))
+            .collect(Collectors.toList());
 
-        if (hotelDiKota.isEmpty()) {
-            System.out.println("Tidak ada hotel di " + inputKota + ".");
-            System.out.print("Tekan Enter untuk kembali...");
-            sc.nextLine();
-            return;
+    if (hotelDiKota.isEmpty()) {
+        System.out.println("Tidak ada hotel di " + inputKota + ".");
+        System.out.print("Tekan Enter untuk kembali...");
+        sc.nextLine();
+        return;
+    }
+
+    while (true) {
+        System.out.println("\nPilih Hotel:");
+        for (int i = 0; i < hotelDiKota.size(); i++) {
+            Hotel h = hotelDiKota.get(i);
+            System.out.println((i + 1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
         }
 
-        while (true) {
-            System.out.println("\nPilih Hotel:");
-            for (int i = 0; i < hotelDiKota.size(); i++) {
-                Hotel h = hotelDiKota.get(i);
-                System.out.println((i + 1) + ". " + h.getName() + " [" + h.getStarRating() + "]");
+        System.out.print("\nPilih nomor hotel (atau ketik M/B): ");
+        String inputHotel = sc.nextLine().trim().toUpperCase();
+        
+        if (inputHotel.equals("M")) { currentState = AppState.MAIN; return; }
+        if (inputHotel.equals("B")) { kembali(); return; }
+
+        try {
+            int pilihHotel = Integer.parseInt(inputHotel);
+            if (pilihHotel < 1 || pilihHotel > hotelDiKota.size()) {
+                System.out.println("Pilihan tidak valid.");
+                continue;
             }
 
-            System.out.print("\nPilih nomor hotel (atau ketik M/B): ");
-            String inputHotel = sc.nextLine().trim().toUpperCase();
-            
-            if (inputHotel.equals("M")) { currentState = AppState.MAIN; return; }
-            if (inputHotel.equals("B")) { kembali(); return; }
+            Hotel hotel = hotelDiKota.get(pilihHotel - 1);
 
-            try {
-                int pilihHotel = Integer.parseInt(inputHotel);
-                if (pilihHotel < 1 || pilihHotel > hotelDiKota.size()) {
-                    System.out.println("Pilihan tidak valid.");
+            while (true) {
+                printHeader("Main > Booking Hotel > Pilih Kamar");
+                System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
+                
+                List<Room> rooms = new ArrayList<>(hotel.getRooms());
+                
+                // Sorting menu
+                System.out.println("\nOpsi Sorting: [1] Default  [2] Harga Termurah  [3] Harga Termahal");
+                System.out.print("Pilih sorting (atau tekan Enter untuk default): ");
+                String sortInput = sc.nextLine().trim();
+                
+                if (sortInput.equals("2")) {
+                    rooms.sort((a, b) -> Integer.compare(a.getPricePerNight(), b.getPricePerNight()));
+                    System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termurah" + UIFormatter.RESET);
+                } else if (sortInput.equals("3")) {
+                    rooms.sort((a, b) -> Integer.compare(b.getPricePerNight(), a.getPricePerNight()));
+                    System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termahal" + UIFormatter.RESET);
+                }
+                
+                System.out.println("\nTipe Kamar Tersedia:\n");
+                for (int j = 0; j < rooms.size(); j++) {
+                    UIFormatter.printRoomCard(j + 1, rooms.get(j), null);
+                }
+
+                System.out.print("\nPilih nomor kamar (atau ketik M/B): ");
+                String inputKamar = sc.nextLine().trim().toUpperCase();
+                
+                if (inputKamar.equals("M")) { currentState = AppState.MAIN; return; }
+                if (inputKamar.equals("B")) { break; } 
+
+                int pilihKamar = Integer.parseInt(inputKamar);
+                if (pilihKamar < 1 || pilihKamar > rooms.size()) {
+                    System.out.println(UIFormatter.RED + "Pilihan tidak valid." + UIFormatter.RESET);
+                    System.out.print("Tekan Enter untuk melanjutkan...");
+                    sc.nextLine();
                     continue;
                 }
 
-                Hotel hotel = hotelDiKota.get(pilihHotel - 1);
+                Room kamar = rooms.get(pilihKamar - 1);
 
-                while (true) {
-                    printHeader("Main > Booking Hotel > Pilih Kamar");
-                    System.out.println("\n" + UIFormatter.BRIGHT_CYAN + hotel.getName() + " [" + UIFormatter.formatStars(hotel.getStarRating()) + UIFormatter.BRIGHT_CYAN + "]" + UIFormatter.RESET);
-                    
-                    List<Room> rooms = new ArrayList<>(hotel.getRooms());
-                    
-                    // Sorting menu
-                    System.out.println("\nOpsi Sorting: [1] Default  [2] Harga Termurah  [3] Harga Termahal");
-                    System.out.print("Pilih sorting (atau tekan Enter untuk default): ");
-                    String sortInput = sc.nextLine().trim();
-                    
-                    if (sortInput.equals("2")) {
-                        rooms.sort((a, b) -> Integer.compare(a.getPricePerNight(), b.getPricePerNight()));
-                        System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termurah" + UIFormatter.RESET);
-                    } else if (sortInput.equals("3")) {
-                        rooms.sort((a, b) -> Integer.compare(b.getPricePerNight(), a.getPricePerNight()));
-                        System.out.println(UIFormatter.GREEN + "✓ Diurutkan berdasarkan harga termahal" + UIFormatter.RESET);
-                    }
-                    
-                    System.out.println("\nTipe Kamar Tersedia:\n");
-                    for (int j = 0; j < rooms.size(); j++) {
-                        UIFormatter.printRoomCard(j + 1, rooms.get(j), null);
-                    }
-
-                    System.out.print("\nPilih nomor kamar (atau ketik M/B): ");
-                    String inputKamar = sc.nextLine().trim().toUpperCase();
-                    
-                    if (inputKamar.equals("M")) { currentState = AppState.MAIN; return; }
-                    if (inputKamar.equals("B")) { break; } 
-
-                    int pilihKamar = Integer.parseInt(inputKamar);
-                    if (pilihKamar < 1 || pilihKamar > rooms.size()) {
-                        System.out.println(UIFormatter.RED + "Pilihan tidak valid." + UIFormatter.RESET);
-                        System.out.print("Tekan Enter untuk melanjutkan...");
-                        sc.nextLine();
+                // ---------- Input Tanggal Check‑in ----------
+                System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Tanggal check-in (yyyy-mm-dd) [B untuk kembali]: " + UIFormatter.RESET);
+                String dateInput = sc.nextLine().trim();
+                if (dateInput.equalsIgnoreCase("B")) break;
+                
+                LocalDate checkIn;
+                try {
+                    checkIn = LocalDate.parse(dateInput);
+                    if (checkIn.isBefore(LocalDate.now())) {
+                        System.out.println(UIFormatter.RED + "Tanggal tidak boleh di masa lalu." + UIFormatter.RESET);
                         continue;
                     }
-
-                    Room kamar = rooms.get(pilihKamar - 1);
-
-                    System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Tanggal check-in (yyyy-mm-dd) [B untuk kembali]: " + UIFormatter.RESET);
-                    String dateInput = sc.nextLine().trim();
-                    if (dateInput.equalsIgnoreCase("B")) break;
-                    
-                    LocalDate checkIn;
-                    try {
-                        checkIn = LocalDate.parse(dateInput);
-                        if (checkIn.isBefore(LocalDate.now())) {
-                            System.out.println(UIFormatter.RED + "Tanggal tidak boleh di masa lalu." + UIFormatter.RESET);
-                            continue;
-                        }
-                    } catch (DateTimeParseException e) {
-                        System.out.println(UIFormatter.RED + "Format salah (yyyy-mm-dd)." + UIFormatter.RESET);
-                        continue;
-                    }
-
-                    System.out.print(UIFormatter.BRIGHT_CYAN + "Lama menginap (malam) [B untuk kembali]: " + UIFormatter.RESET);
-                    String malamInput = sc.nextLine().trim();
-                    if (malamInput.equalsIgnoreCase("B")) break;
-                    
-                    int malam = Integer.parseInt(malamInput);
-                    if (malam < 1) {
-                        System.out.println(UIFormatter.RED + "Minimal 1 malam." + UIFormatter.RESET);
-                        continue;
-                    }
-
-                    double diskon = 0;
-                    System.out.print(UIFormatter.BRIGHT_CYAN + "Punya kode promo? (kosongkan jika tidak): " + UIFormatter.RESET);
-                    String kode = sc.nextLine().trim();
-                    Promo promoAktif = null;
-                    
-                    if (!kode.isEmpty()) {
-                        for (Promo p : promos) {
-                            if (p.getCode().equalsIgnoreCase(kode) && p.isValidForDate(checkIn)) {
-                                promoAktif = p;
-                                diskon = p.getDiscountPercent();
-                                break;
-                            }
-                        }
-                        if (promoAktif == null) {
-                            System.out.println(UIFormatter.RED + "Kode tidak valid atau tidak berlaku." + UIFormatter.RESET);
-                        } else {
-                            System.out.println(UIFormatter.GREEN + "✓ Promo diterapkan: " + promoAktif.getCode() + UIFormatter.RESET);
-                        }
-                    }
-
-                    int hargaDasar = kamar.getPricePerNight() * malam;
-                    int potongan = (int) (hargaDasar * diskon);
-                    int total = hargaDasar - potongan;
-
-                    System.out.println("\n" + UIFormatter.BLUE + "╔════════════════════════════════════════╗" + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BLUE + "║          REVIEW PESANAN                ║" + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BLUE + "╠════════════════════════════════════════╣" + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Hotel     : " + hotel.getName());
-                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Kamar     : " + kamar.getType());
-                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Periode   : " + checkIn + " → " + checkIn.plusDays(malam) + " (" + malam + " malam)");
-                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Harga Dasar : Rp " + UIFormatter.formatPrice(hargaDasar));
-                    if (potongan > 0) System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.RED + "Diskon      : -Rp " + UIFormatter.formatPrice(potongan) + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.BRIGHT_GREEN + "TOTAL       : Rp " + UIFormatter.formatPrice(total) + UIFormatter.RESET);
-                    System.out.println(UIFormatter.BLUE + "╚════════════════════════════════════════╝" + UIFormatter.RESET);
-
-                    System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Metode Pembayaran (transfer_bank / e_wallet) [B = Batal]: " + UIFormatter.RESET);
-                    String metode = sc.nextLine().toLowerCase().trim();
-                    if (metode.equalsIgnoreCase("B")) break;
-                    
-                    if (!metode.equals("transfer_bank") && !metode.equals("e_wallet")) {
-                        System.out.println("Metode pembayaran tidak valid.");
-                        continue;
-                    }
-
-                    System.out.print("Konfirmasi pesanan? (Y/N): ");
-                    if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                        System.out.println("Pesanan dibatalkan.");
-                        continue;
-                    }
-
-                    Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
-                            checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
-                    int reservasiId = DatabaseHelper.createReservation(newBooking);
-
-                    if (reservasiId > 0) {
-                        System.out.println(">>> Booking berhasil! ID reservasi: " + reservasiId);
-                    } else {
-                        System.out.println(">>> Gagal booking.");
-                    }
-                    
-                    System.out.print("\nTekan Enter untuk kembali ke Menu Utama...");
-                    sc.nextLine();
-                    kembali(); 
-                    return; 
+                } catch (DateTimeParseException e) {
+                    System.out.println(UIFormatter.RED + "Format salah (yyyy-mm-dd)." + UIFormatter.RESET);
+                    continue;
                 }
 
-            } catch (NumberFormatException e) {
-                System.out.println("Input tidak valid.");
+                // --- LOGIKA FILTER WAKTU (JIKA HARI INI & SUDAH LEWAT JAM 2 SIANG) ---
+                LocalTime sekarang = LocalTime.now();
+                if (checkIn.equals(LocalDate.now()) && sekarang.isAfter(LocalTime.of(14, 0))) {
+                    System.out.println(UIFormatter.YELLOW + "Batas waktu check-in hari ini (pukul 14:00) sudah lewat." + UIFormatter.RESET);
+                    System.out.println(UIFormatter.YELLOW + "Pemesanan otomatis dialihkan ke hari berikutnya (pukul 14:00)." + UIFormatter.RESET);
+                    checkIn = LocalDate.now().plusDays(1);   // pindah ke besok
+                    System.out.println(UIFormatter.GREEN + "✓ Tanggal check-in baru: " + checkIn + UIFormatter.RESET);
+                }
+                // --- AKHIR FILTER WAKTU ---
+
+                // ---------- Input Lama Menginap ----------
+                System.out.print(UIFormatter.BRIGHT_CYAN + "Lama menginap (malam) [B untuk kembali]: " + UIFormatter.RESET);
+                String malamInput = sc.nextLine().trim();
+                if (malamInput.equalsIgnoreCase("B")) break;
+                
+                int malam = Integer.parseInt(malamInput);
+                if (malam < 1) {
+                    System.out.println(UIFormatter.RED + "Minimal 1 malam." + UIFormatter.RESET);
+                    continue;
+                }
+
+                // ---------- Kode Promo ----------
+                double diskon = 0;
+                System.out.print(UIFormatter.BRIGHT_CYAN + "Punya kode promo? (kosongkan jika tidak): " + UIFormatter.RESET);
+                String kode = sc.nextLine().trim();
+                Promo promoAktif = null;
+                
+                if (!kode.isEmpty()) {
+                    for (Promo p : promos) {
+                        if (p.getCode().equalsIgnoreCase(kode) && p.isValidForDate(checkIn)) {
+                            promoAktif = p;
+                            diskon = p.getDiscountPercent();
+                            break;
+                        }
+                    }
+                    if (promoAktif == null) {
+                        System.out.println(UIFormatter.RED + "Kode tidak valid atau tidak berlaku." + UIFormatter.RESET);
+                    } else {
+                        System.out.println(UIFormatter.GREEN + "✓ Promo diterapkan: " + promoAktif.getCode() + UIFormatter.RESET);
+                    }
+                }
+
+                // ---------- Hitung Total ----------
+                int hargaDasar = kamar.getPricePerNight() * malam;
+                int potongan = (int) (hargaDasar * diskon);
+                int total = hargaDasar - potongan;
+
+                // ---------- Tampilkan Review Pesanan ----------
+                System.out.println("\n" + UIFormatter.BLUE + "╔════════════════════════════════════════╗" + UIFormatter.RESET);
+                System.out.println(UIFormatter.BLUE + "║          REVIEW PESANAN                ║" + UIFormatter.RESET);
+                System.out.println(UIFormatter.BLUE + "╠════════════════════════════════════════╣" + UIFormatter.RESET);
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Hotel     : " + hotel.getName());
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Kamar     : " + kamar.getType());
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Periode   : " + checkIn + " → " + checkIn.plusDays(malam) + " (" + malam + " malam)");
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + "Harga Dasar : Rp " + UIFormatter.formatPrice(hargaDasar));
+                if (potongan > 0) System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.RED + "Diskon      : -Rp " + UIFormatter.formatPrice(potongan) + UIFormatter.RESET);
+                System.out.println(UIFormatter.BLUE + "║ " + UIFormatter.RESET + UIFormatter.BRIGHT_GREEN + "TOTAL       : Rp " + UIFormatter.formatPrice(total) + UIFormatter.RESET);
+                System.out.println(UIFormatter.BLUE + "╚════════════════════════════════════════╝" + UIFormatter.RESET);
+
+                // ---------- Metode Pembayaran ----------
+                System.out.print("\n" + UIFormatter.BRIGHT_CYAN + "Metode Pembayaran (transfer_bank / e_wallet) [B = Batal]: " + UIFormatter.RESET);
+                String metode = sc.nextLine().toLowerCase().trim();
+                if (metode.equalsIgnoreCase("B")) break;
+                
+                if (!metode.equals("transfer_bank") && !metode.equals("e_wallet")) {
+                    System.out.println("Metode pembayaran tidak valid.");
+                    continue;
+                }
+
+                // ---------- Konfirmasi ----------
+                System.out.print("Konfirmasi pesanan? (Y/N): ");
+                if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
+                    System.out.println("Pesanan dibatalkan.");
+                    continue;
+                }
+
+                // ---------- Simpan Booking ----------
+                Booking newBooking = new Booking(0, loggedUser, hotel, kamar, checkIn,
+                        checkIn.plusDays(malam), total, metode, Booking.Status.CONFIRMED, promoAktif);
+                int reservasiId = DatabaseHelper.createReservation(newBooking);
+
+                if (reservasiId > 0) {
+                    System.out.println(">>> Booking berhasil! ID reservasi: " + reservasiId);
+                } else {
+                    System.out.println(">>> Gagal booking.");
+                }
+                
+                System.out.print("\nTekan Enter untuk kembali ke Menu Utama...");
+                sc.nextLine();
+                kembali(); 
+                return; 
             }
+
+        } catch (NumberFormatException e) {
+            System.out.println("Input tidak valid.");
         }
     }
+}
 
     static void tampilkanPromo() {
         printHeader("Main > Promo");
